@@ -56,7 +56,7 @@ function InlineScoreboard({ data, fallbackTag }) {
   if (!data?.teams) return null
 
   return (
-    <div className="rounded-lg border border-black-800/40 w-full max-w-[980px] mx-auto">
+    <div className="rounded-lg border border-black-800/40 w-full max-w-[1100px] mx-auto overflow-hidden">
       <div className="w-full">
       {data.teams.map((team, ti) => {
         const isBlue = team.side === "blue"
@@ -93,7 +93,7 @@ function InlineScoreboard({ data, fallbackTag }) {
             {/* Gradiente divisor entre header e linhas do scoreboard */}
             <div className="w-full h-[1.5px] bg-gradient-to-r from-black-800/0 via-blue-400/15 to-black-800/0 scoreboard-divider" />
 
-            <div className="grid grid-cols-[32px_minmax(120px,1.4fr)_minmax(82px,1fr)_minmax(52px,0.6fr)_minmax(52px,0.6fr)_minmax(150px,1.2fr)_minmax(40px,0.5fr)_minmax(132px,1fr)] items-center gap-2 px-3 py-1.5 bg-black-900/30">
+            <div className="grid grid-cols-[32px_1.35fr_0.95fr_0.5fr_0.5fr_1.1fr_0.45fr_0.95fr] items-center gap-2 px-3 py-1.5 bg-black-900/30">
               <div />
               <div className="text-[10px] text-black-400 uppercase tracking-wider">Jogador</div>
               <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KDA</div>
@@ -116,7 +116,7 @@ function InlineScoreboard({ data, fallbackTag }) {
               return (
                 <div
                   key={pi}
-                  className="grid grid-cols-[32px_minmax(120px,1.4fr)_minmax(82px,1fr)_minmax(52px,0.6fr)_minmax(52px,0.6fr)_minmax(150px,1.2fr)_minmax(40px,0.5fr)_minmax(132px,1fr)] items-center gap-2 px-3 py-2.5 hover:bg-white/[0.02] transition-colors"
+                  className="grid grid-cols-[32px_1.35fr_0.95fr_0.5fr_0.5fr_1.1fr_0.45fr_0.95fr] items-center gap-2 px-3 py-2.5 hover:bg-white/[0.02] transition-colors"
                   style={isTarget ? { background: "rgba(200,155,60,0.08)", borderLeft: "2px solid rgba(200,155,60,0.5)" } : {}}
                 >
                   <div className="w-8 h-8 rounded overflow-hidden border border-white/10 bg-black-600">
@@ -199,7 +199,7 @@ function InlineScoreboard({ data, fallbackTag }) {
                        : <span className="text-[10px] text-black-500">—</span>}
                   </div>
 
-                   <div className="flex justify-start gap-1 min-w-0">
+                    <div className="flex justify-start flex-wrap gap-1 min-w-0 max-w-full">
                     {(player.items ?? []).map((itemId, ii) => (
                        <div key={ii} className="w-5 h-5 rounded bg-black-600/50 overflow-hidden">
                         {itemId > 0 && (
