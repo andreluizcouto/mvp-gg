@@ -16,36 +16,47 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from event_bus import EventBus, EventType, Event
 
 
-def test_eventbus_polling_with_tk_mainloop():
-    """EventBus delivers events via after() polling on the tk mainloop."""
+@pytest.fixture(scope="module")
+def _tk_root():
+    """Single Tk root shared across all tests (avoids Tcl state corruption on Windows)."""
     root = tk.Tk()
     root.withdraw()
+    yield root
+    try:
+        root.destroy()
+    except tk.TclError:
+        pass
+
+
+@pytest.fixture()
+def tk_root(_tk_root):
+    """Per-test wrapper that resets the shared root for reuse."""
+    return _tk_root
+
+
+def test_eventbus_polling_with_tk_mainloop(tk_root):
+    """EventBus delivers events via after() polling on the tk mainloop."""
     received = []
 
     event_bus = EventBus()
     event_bus.subscribe(EventType.STATE_CHANGE, lambda e: received.append(e))
-    event_bus.start_polling(root)
+    event_bus.start_polling(tk_root)
 
     # Emit from main thread after a short delay
-    root.after(50, lambda: event_bus.emit(
+    tk_root.after(50, lambda: event_bus.emit(
         Event(EventType.STATE_CHANGE, {"state": "waiting"})
     ))
     # Safety timeout to exit mainloop
-    root.after(500, root.quit)
+    tk_root.after(500, tk_root.quit)
 
-    root.mainloop()
+    tk_root.mainloop()
 
-    try:
-        assert len(received) == 1
-        assert received[0].data["state"] == "waiting"
-    finally:
-        root.destroy()
+    assert len(received) == 1
+    assert received[0].data["state"] == "waiting"
 
 
-def test_cross_thread_emit_to_tk_mainloop():
+def test_cross_thread_emit_to_tk_mainloop(tk_root):
     """Events emitted from a background thread are delivered on the main thread."""
-    root = tk.Tk()
-    root.withdraw()
     received = []
     delivery_thread_ids = []
 
@@ -57,7 +68,7 @@ def test_cross_thread_emit_to_tk_mainloop():
 
     event_bus = EventBus()
     event_bus.subscribe(EventType.STATE_CHANGE, handler)
-    event_bus.start_polling(root)
+    event_bus.start_polling(tk_root)
 
     def background_emit():
         time.sleep(0.05)
@@ -69,23 +80,18 @@ def test_cross_thread_emit_to_tk_mainloop():
     t.start()
 
     # Safety timeout
-    root.after(500, root.quit)
-    root.mainloop()
+    tk_root.after(500, tk_root.quit)
+    tk_root.mainloop()
 
-    try:
-        assert len(received) == 1
-        assert received[0].data["state"] == "recording"
-        assert received[0].data["champion"] == "Jinx"
-        # Handler runs on main thread (via after() polling)
-        assert delivery_thread_ids[0] == main_thread_id
-    finally:
-        root.destroy()
+    assert len(received) == 1
+    assert received[0].data["state"] == "recording"
+    assert received[0].data["champion"] == "Jinx"
+    # Handler runs on main thread (via after() polling)
+    assert delivery_thread_ids[0] == main_thread_id
 
 
-def test_eventbus_delivery_latency():
+def test_eventbus_delivery_latency(tk_root):
     """Cross-thread event delivery completes within 200ms (APP-02 requirement)."""
-    root = tk.Tk()
-    root.withdraw()
     timestamps = {}
 
     def handler(event):
@@ -93,7 +99,7 @@ def test_eventbus_delivery_latency():
 
     event_bus = EventBus()
     event_bus.subscribe(EventType.STATE_CHANGE, handler)
-    event_bus.start_polling(root)
+    event_bus.start_polling(tk_root)
 
     def background_emit():
         time.sleep(0.05)  # Let mainloop start
@@ -104,27 +110,22 @@ def test_eventbus_delivery_latency():
     t.start()
 
     # Safety timeout
-    root.after(500, root.quit)
-    root.mainloop()
+    tk_root.after(500, tk_root.quit)
+    tk_root.mainloop()
 
-    try:
-        assert "emitted" in timestamps, "Event was never emitted"
-        assert "received" in timestamps, "Event was never received"
-        latency = timestamps["received"] - timestamps["emitted"]
-        assert latency < 0.200, f"Latency {latency:.3f}s exceeds 200ms requirement"
-    finally:
-        root.destroy()
+    assert "emitted" in timestamps, "Event was never emitted"
+    assert "received" in timestamps, "Event was never received"
+    latency = timestamps["received"] - timestamps["emitted"]
+    assert latency < 0.200, f"Latency {latency:.3f}s exceeds 200ms requirement"
 
 
-def test_shutdown_via_stop_event():
+def test_shutdown_via_stop_event(tk_root):
     """Shutdown via stop_event + after(0, quit) exits mainloop cleanly."""
-    root = tk.Tk()
-    root.withdraw()
     stop_event = threading.Event()
 
     def on_quit():
         stop_event.set()
-        root.after(0, root.quit)
+        tk_root.after(0, tk_root.quit)
 
     def background_trigger():
         time.sleep(0.1)
@@ -134,26 +135,21 @@ def test_shutdown_via_stop_event():
     t.start()
 
     start = time.perf_counter()
-    root.mainloop()
+    tk_root.mainloop()
     elapsed = time.perf_counter() - start
 
-    try:
-        assert stop_event.is_set(), "stop_event was not set"
-        assert elapsed < 2.0, f"Mainloop took {elapsed:.1f}s to exit (should be < 2s)"
-    finally:
-        root.destroy()
+    assert stop_event.is_set(), "stop_event was not set"
+    assert elapsed < 2.0, f"Mainloop took {elapsed:.1f}s to exit (should be < 2s)"
 
 
-def test_multiple_events_from_async_thread():
+def test_multiple_events_from_async_thread(tk_root):
     """Multiple events of different types are delivered in order."""
-    root = tk.Tk()
-    root.withdraw()
     received = []
 
     event_bus = EventBus()
     event_bus.subscribe(EventType.STATE_CHANGE, lambda e: received.append(e))
     event_bus.subscribe(EventType.ERROR, lambda e: received.append(e))
-    event_bus.start_polling(root)
+    event_bus.start_polling(tk_root)
 
     def background_emit():
         time.sleep(0.05)
@@ -165,16 +161,13 @@ def test_multiple_events_from_async_thread():
     t.start()
 
     # Safety timeout
-    root.after(500, root.quit)
-    root.mainloop()
+    tk_root.after(500, tk_root.quit)
+    tk_root.mainloop()
 
-    try:
-        assert len(received) == 3, f"Expected 3 events, got {len(received)}"
-        assert received[0].type == EventType.STATE_CHANGE
-        assert received[0].data["state"] == "waiting"
-        assert received[1].type == EventType.ERROR
-        assert received[1].data["message"] == "test error"
-        assert received[2].type == EventType.STATE_CHANGE
-        assert received[2].data["state"] == "recording"
-    finally:
-        root.destroy()
+    assert len(received) == 3, f"Expected 3 events, got {len(received)}"
+    assert received[0].type == EventType.STATE_CHANGE
+    assert received[0].data["state"] == "waiting"
+    assert received[1].type == EventType.ERROR
+    assert received[1].data["message"] == "test error"
+    assert received[2].type == EventType.STATE_CHANGE
+    assert received[2].data["state"] == "recording"
