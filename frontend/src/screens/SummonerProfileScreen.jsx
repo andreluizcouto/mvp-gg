@@ -93,7 +93,7 @@ function InlineScoreboard({ data, fallbackTag }) {
             {/* Gradiente divisor entre header e linhas do scoreboard */}
             <div className="w-full h-[1.5px] bg-gradient-to-r from-black-800/0 via-blue-400/15 to-black-800/0 scoreboard-divider" />
 
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(240px,0.95fr)] items-center gap-3 px-3 py-1.5 bg-black-900/30">
+            <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(280px,1.1fr)] items-center gap-2 px-3 py-1.5 bg-black-900/30">
               <div className="text-[10px] text-black-400 uppercase tracking-wider">Jogador / Items</div>
               <div className="grid grid-cols-5 gap-2">
                 <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KDA</div>
@@ -116,11 +116,11 @@ function InlineScoreboard({ data, fallbackTag }) {
               return (
                 <div
                   key={pi}
-                  className="grid grid-cols-[minmax(0,1fr)_minmax(240px,0.95fr)] items-start gap-3 px-3 py-2.5 hover:bg-white/[0.02] transition-colors"
+                  className="grid grid-cols-[minmax(0,0.9fr)_minmax(280px,1.1fr)] items-start gap-2 px-3 py-2 hover:bg-white/[0.02] transition-colors"
                   style={isTarget ? { background: "rgba(200,155,60,0.08)", borderLeft: "2px solid rgba(200,155,60,0.5)" } : {}}
                 >
-                  <div className="min-w-0 flex items-start gap-2.5">
-                    <div className="w-8 h-8 rounded overflow-hidden border border-white/10 bg-black-600 flex-shrink-0">
+                  <div className="min-w-0 flex items-start gap-2">
+                    <div className="w-7 h-7 rounded overflow-hidden border border-white/10 bg-black-600 flex-shrink-0">
                       <img
                         src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/${player.champion}.png`}
                         alt={player.champion}
@@ -143,26 +143,48 @@ function InlineScoreboard({ data, fallbackTag }) {
                           {player.summoner_name || player.champion}
                         </p>
                       )}
-                      <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className="flex items-center gap-1 mt-0.5">
                         {player.position && (
                           <span className="text-[9px] text-black-400 bg-black-600/80 rounded px-1 py-0.5 inline-block">
                             {getPositionLabel(player.position, "short")}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-1 mt-1.5 min-w-0 flex-wrap">
-                        {(player.items ?? []).map((itemId, ii) => (
-                          <div key={ii} className="w-5 h-5 rounded bg-black-600/50 overflow-hidden flex-shrink-0">
-                            {itemId > 0 && (
-                              <img
-                                src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/item/${itemId}.png`}
-                                alt=""
-                                className="w-full h-full object-cover"
-                                onError={e => { e.target.style.display = "none" }}
-                              />
-                            )}
-                          </div>
-                        ))}
+                      <div className="mt-1 grid grid-rows-2 gap-0.5 w-fit">
+                        <div className="flex items-center gap-1">
+                          {[0, 1, 2, 6].map((slotIdx) => {
+                            const itemId = player.items?.[slotIdx] ?? 0
+                            return (
+                              <div key={`top-${slotIdx}`} className="w-[18px] h-[18px] rounded bg-black-600/50 overflow-hidden flex-shrink-0">
+                                {itemId > 0 && (
+                                  <img
+                                    src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/item/${itemId}.png`}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                    onError={e => { e.target.style.display = "none" }}
+                                  />
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {[3, 4, 5].map((slotIdx) => {
+                            const itemId = player.items?.[slotIdx] ?? 0
+                            return (
+                              <div key={`bot-${slotIdx}`} className="w-[18px] h-[18px] rounded bg-black-600/50 overflow-hidden flex-shrink-0">
+                                {itemId > 0 && (
+                                  <img
+                                    src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/item/${itemId}.png`}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                    onError={e => { e.target.style.display = "none" }}
+                                  />
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
                     </div>
                   </div>
