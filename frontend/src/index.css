@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+html, body {
+  background-color: #131619;
+  color: #CDCECF;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar            { width: 6px; height: 8px; }
+::-webkit-scrollbar-track      { background: #0D0F10; }
+::-webkit-scrollbar-thumb      { background: #7989EC44; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover{ background: #7989EC88; }
+/* Scrollbar horizontal mais visível para mobile */
+@media (max-width: 600px) {
+  ::-webkit-scrollbar            { height: 12px; }
+  ::-webkit-scrollbar-thumb      { background: #7989ECcc; border-radius: 6px; }
+}
+
+@layer utilities {
+  .text-gold-gradient {
+    background: linear-gradient(135deg, #f0d080 0%, #c89b3c 50%, #a47d2e 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-premium {
+    background: linear-gradient(135deg, #DECCFB, #7C35F1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .shimmer-bg {
+    background: linear-gradient(90deg, #1A1D21 0%, #363A3D 30%, #2a2e3a 50%, #363A3D 70%, #1A1D21 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+  }
+  .glow-purple {
+    box-shadow: 0 8px 9px 0px rgba(121,137,236,0.10);
+  }
+  .scoreGlow {
+    animation: scoreGlow 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes scoreGlow {
+  0%, 100% { box-shadow: 0 0 10px #7989ECbb, 0 0 20px #7989EC55; }
+  50%       { box-shadow: 0 0 20px #A6B0F2ee, 0 0 40px #7989EC99; }
+}

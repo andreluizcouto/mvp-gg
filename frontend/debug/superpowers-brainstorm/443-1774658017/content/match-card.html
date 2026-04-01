@@ -1,0 +1,116 @@
+<h2>Card de partida no histórico — como indicar que tem coaching disponível?</h2>
+<p class="subtitle">Na tela de perfil, o usuário vê suas últimas partidas. Como sinalizar que uma tem análise IA?</p>
+
+<div class="cards">
+
+  <!-- OPÇÃO A: Badge discreta no canto -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a1a; padding:16px; min-height:200px;">
+      <!-- Match com coaching -->
+      <div style="background:#111; border:1px solid #1a2e1a; border-radius:8px; padding:10px 12px; margin-bottom:8px; display:flex; align-items:center; gap:10px; position:relative;">
+        <div style="width:36px; height:36px; background:#1a2e1a; border-radius:50%; border:2px solid #4caf50; flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+            <span style="color:#e0e0e0; font-size:12px; font-weight:600;">Viktor</span>
+            <span style="background:#4caf5022; color:#4caf50; font-size:9px; padding:1px 5px; border-radius:3px; font-weight:700;">VITÓRIA</span>
+            <span style="background:#c89b3c22; color:#c89b3c; font-size:9px; padding:1px 6px; border-radius:3px; font-weight:700;">🤖 IA</span>
+          </div>
+          <div style="color:#666; font-size:10px;">8/3/11 · 7.2 CS/min · 34 vision</div>
+        </div>
+        <div style="color:#888; font-size:10px;">32min</div>
+      </div>
+      <!-- Match sem coaching -->
+      <div style="background:#111; border:1px solid #2e1a1a; border-radius:8px; padding:10px 12px; display:flex; align-items:center; gap:10px; opacity:0.7;">
+        <div style="width:36px; height:36px; background:#2e1a1a; border-radius:50%; border:2px solid #ef5350; flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+            <span style="color:#e0e0e0; font-size:12px; font-weight:600;">Jinx</span>
+            <span style="background:#ef535022; color:#ef5350; font-size:9px; padding:1px 5px; border-radius:3px; font-weight:700;">DERROTA</span>
+          </div>
+          <div style="color:#666; font-size:10px;">4/7/8 · 5.8 CS/min · 21 vision</div>
+        </div>
+        <div style="color:#888; font-size:10px;">28min</div>
+      </div>
+      <div style="color:#555; font-size:10px; text-align:center; margin-top:10px;">Badge "🤖 IA" só aparece quando tem análise disponível</div>
+    </div>
+    <div class="card-body">
+      <h3>A — Badge inline no card</h3>
+      <p>Tag "🤖 IA" ao lado do resultado. Sutil mas visível. Não muda o layout do card.</p>
+    </div>
+  </div>
+
+  <!-- OPÇÃO B: Borda colorida + ícone -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a1a; padding:16px; min-height:200px;">
+      <!-- Match com coaching - borda especial -->
+      <div style="background:#111; border:1px solid #1a2e1a; border-left:3px solid #c89b3c; border-radius:8px; padding:10px 12px; margin-bottom:8px; display:flex; align-items:center; gap:10px;">
+        <div style="width:36px; height:36px; background:#1a2e1a; border-radius:50%; border:2px solid #4caf50; flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+            <span style="color:#e0e0e0; font-size:12px; font-weight:600;">Viktor</span>
+            <span style="background:#4caf5022; color:#4caf50; font-size:9px; padding:1px 5px; border-radius:3px; font-weight:700;">VITÓRIA</span>
+          </div>
+          <div style="color:#666; font-size:10px;">8/3/11 · 7.2 CS/min · 34 vision</div>
+        </div>
+        <div style="color:#c89b3c; font-size:16px; margin-right:2px;">🤖</div>
+      </div>
+      <!-- Match sem coaching -->
+      <div style="background:#111; border:1px solid #2e1a1a; border-radius:8px; padding:10px 12px; display:flex; align-items:center; gap:10px; opacity:0.7;">
+        <div style="width:36px; height:36px; background:#2e1a1a; border-radius:50%; border:2px solid #ef5350; flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+            <span style="color:#e0e0e0; font-size:12px; font-weight:600;">Jinx</span>
+            <span style="background:#ef535022; color:#ef5350; font-size:9px; padding:1px 5px; border-radius:3px; font-weight:700;">DERROTA</span>
+          </div>
+          <div style="color:#666; font-size:10px;">4/7/8 · 5.8 CS/min · 21 vision</div>
+        </div>
+      </div>
+      <div style="color:#555; font-size:10px; text-align:center; margin-top:10px;">Borda dourada + ícone robô à direita</div>
+    </div>
+    <div class="card-body">
+      <h3>B — Borda dourada + ícone</h3>
+      <p>Card com borda esquerda dourada e ícone de robô. Mais visualmente distinto — fácil de perceber no scroll.</p>
+    </div>
+  </div>
+
+  <!-- OPÇÃO C: Expansível no próprio card -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a1a; padding:16px; min-height:200px;">
+      <!-- Match com coaching expansível -->
+      <div style="background:#111; border:1px solid #1a2e1a; border-radius:8px; overflow:hidden; margin-bottom:8px;">
+        <div style="padding:10px 12px; display:flex; align-items:center; gap:10px;">
+          <div style="width:36px; height:36px; background:#1a2e1a; border-radius:50%; border:2px solid #4caf50; flex-shrink:0;"></div>
+          <div style="flex:1;">
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+              <span style="color:#e0e0e0; font-size:12px; font-weight:600;">Viktor</span>
+              <span style="background:#4caf5022; color:#4caf50; font-size:9px; padding:1px 5px; border-radius:3px; font-weight:700;">VITÓRIA</span>
+            </div>
+            <div style="color:#666; font-size:10px;">8/3/11 · 7.2 CS/min · 34 vision</div>
+          </div>
+          <div style="color:#c89b3c; font-size:10px; font-weight:700; cursor:pointer;">🤖 ver análise ↓</div>
+        </div>
+        <!-- Preview expandido -->
+        <div style="border-top:1px solid #1a2e1a; padding:8px 12px; background:#0d0d1a;">
+          <div style="color:#888; font-size:10px; line-height:1.6;">
+            <span style="color:#ef5350;">3 mortes</span> analisadas · padrão: falta de visão mid...
+          </div>
+        </div>
+      </div>
+      <!-- Match sem coaching -->
+      <div style="background:#111; border:1px solid #2e1a1a; border-radius:8px; padding:10px 12px; display:flex; align-items:center; gap:10px; opacity:0.7;">
+        <div style="width:36px; height:36px; background:#2e1a1a; border-radius:50%; border:2px solid #ef5350; flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="color:#e0e0e0; font-size:12px; font-weight:600;">Jinx</span>
+            <span style="background:#ef535022; color:#ef5350; font-size:9px; padding:1px 5px; border-radius:3px; font-weight:700;">DERROTA</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Preview inline expansível</h3>
+      <p>O card mostra um resumo da análise diretamente no histórico, sem precisar abrir a partida. Botão "ver análise" para detalhes completos.</p>
+    </div>
+  </div>
+
+</div>

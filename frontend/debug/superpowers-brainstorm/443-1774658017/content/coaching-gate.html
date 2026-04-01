@@ -1,0 +1,121 @@
+<h2>Como aparece o coaching bloqueado na página da partida?</h2>
+<p class="subtitle">Para quem ainda não tem o app instalado — qual abordagem te parece melhor?</p>
+
+<div class="cards">
+
+  <!-- OPÇÃO A: Preview borrado com lock -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a1a; padding:16px; min-height:240px;">
+      <!-- Stats normais acima -->
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <div style="background:#111; border:1px solid #1a1a2e; border-radius:6px; padding:8px 12px; flex:1; text-align:center;">
+          <div style="color:#c89b3c; font-size:16px; font-weight:700;">8/3/11</div>
+          <div style="color:#555; font-size:9px;">KDA</div>
+        </div>
+        <div style="background:#111; border:1px solid #1a1a2e; border-radius:6px; padding:8px 12px; flex:1; text-align:center;">
+          <div style="color:#4caf50; font-size:16px; font-weight:700;">7.2</div>
+          <div style="color:#555; font-size:9px;">CS/min</div>
+        </div>
+        <div style="background:#111; border:1px solid #1a1a2e; border-radius:6px; padding:8px 12px; flex:1; text-align:center;">
+          <div style="color:#2196f3; font-size:16px; font-weight:700;">34</div>
+          <div style="color:#555; font-size:9px;">Vision</div>
+        </div>
+      </div>
+      <!-- Coaching bloqueado -->
+      <div style="position:relative; border:1px solid #1a1a2e; border-radius:8px; overflow:hidden;">
+        <div style="filter:blur(3px); padding:12px; background:#0d0d20;">
+          <div style="color:#888; font-size:11px; line-height:1.7;">
+            Você morreu 3x no mesmo tribush sem ward...<br>
+            Padrão identificado: todas as mortes foram...<br>
+            Recomendação: compre Control Ward antes...
+          </div>
+        </div>
+        <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(10,10,26,0.7); backdrop-filter:blur(1px);">
+          <div style="font-size:20px; margin-bottom:6px;">🔒</div>
+          <div style="color:#c89b3c; font-size:12px; font-weight:700; margin-bottom:4px;">Coaching IA disponível</div>
+          <div style="color:#666; font-size:10px; text-align:center; max-width:140px;">Instale o CoachApp e jogue uma partida</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Preview borrado + cadeado</h3>
+      <p>O usuário vê que existe conteúdo mas não consegue ler. Cria curiosidade. Clássico paywall visual.</p>
+    </div>
+  </div>
+
+  <!-- OPÇÃO B: Seção vazia com CTA -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a1a; padding:16px; min-height:240px;">
+      <!-- Stats normais acima -->
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <div style="background:#111; border:1px solid #1a1a2e; border-radius:6px; padding:8px 12px; flex:1; text-align:center;">
+          <div style="color:#c89b3c; font-size:16px; font-weight:700;">8/3/11</div>
+          <div style="color:#555; font-size:9px;">KDA</div>
+        </div>
+        <div style="background:#111; border:1px solid #1a1a2e; border-radius:6px; padding:8px 12px; flex:1; text-align:center;">
+          <div style="color:#4caf50; font-size:16px; font-weight:700;">7.2</div>
+          <div style="color:#555; font-size:9px;">CS/min</div>
+        </div>
+        <div style="background:#111; border:1px solid #1a1a2e; border-radius:6px; padding:8px 12px; flex:1; text-align:center;">
+          <div style="color:#2196f3; font-size:16px; font-weight:700;">34</div>
+          <div style="color:#555; font-size:9px;">Vision</div>
+        </div>
+      </div>
+      <!-- CTA limpo -->
+      <div style="border:1px dashed #c89b3c44; border-radius:8px; padding:20px; text-align:center; background:#0d0d20;">
+        <div style="font-size:24px; margin-bottom:8px;">🤖</div>
+        <div style="color:#c89b3c; font-size:13px; font-weight:700; margin-bottom:4px;">Análise IA desta partida</div>
+        <div style="color:#666; font-size:11px; margin-bottom:12px; line-height:1.5;">Morte a morte, padrões identificados,<br>feedback personalizado com prints do mapa</div>
+        <div style="background:#c89b3c; color:#000; font-size:11px; font-weight:700; padding:7px 18px; border-radius:5px; display:inline-block; cursor:pointer;">
+          Baixar CoachApp — grátis
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — CTA limpo sem preview</h3>
+      <p>Honesto e direto. Explica o que é, oferece o download. Sem prometer algo que não vai mostrar.</p>
+    </div>
+  </div>
+
+  <!-- OPÇÃO C: Análise parcial + upsell -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a1a; padding:16px; min-height:240px;">
+      <!-- Stats normais acima -->
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <div style="background:#111; border:1px solid #1a1a2e; border-radius:6px; padding:8px 12px; flex:1; text-align:center;">
+          <div style="color:#c89b3c; font-size:16px; font-weight:700;">8/3/11</div>
+          <div style="color:#555; font-size:9px;">KDA</div>
+        </div>
+        <div style="background:#111; border:1px solid #1a1a2e; border-radius:6px; padding:8px 12px; flex:1; text-align:center;">
+          <div style="color:#4caf50; font-size:16px; font-weight:700;">7.2</div>
+          <div style="color:#555; font-size:9px;">CS/min</div>
+        </div>
+        <div style="background:#111; border:1px solid #1a1a2e; border-radius:6px; padding:8px 12px; flex:1; text-align:center;">
+          <div style="color:#2196f3; font-size:16px; font-weight:700;">34</div>
+          <div style="color:#555; font-size:9px;">Vision</div>
+        </div>
+      </div>
+      <!-- Análise parcial -->
+      <div style="border:1px solid #1a1a2e; border-radius:8px; overflow:hidden; background:#0d0d20;">
+        <div style="padding:10px 12px; border-bottom:1px solid #1a1a2e;">
+          <div style="color:#ef5350; font-size:11px; font-weight:700;">⚠ 3 mortes detectadas nesta partida</div>
+        </div>
+        <div style="padding:10px 12px; filter:blur(2px);">
+          <div style="color:#888; font-size:10px; line-height:1.6;">
+            Morte #1 [04:12] — tribush sem visão<br>
+            Morte #2 [11:34] — overextend mid...
+          </div>
+        </div>
+        <div style="padding:8px 12px; background:#0a0a14; border-top:1px solid #1a1a2e; display:flex; align-items:center; justify-content:space-between;">
+          <span style="color:#666; font-size:10px;">+1 morte e análise completa</span>
+          <span style="color:#c89b3c; font-size:10px; font-weight:700; cursor:pointer;">Instalar app →</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Análise parcial + upsell</h3>
+      <p>Mostra dados reais da API (contagem de mortes) mas borrado. O usuário sente que quase tem acesso. Maior urgência de instalar.</p>
+    </div>
+  </div>
+
+</div>

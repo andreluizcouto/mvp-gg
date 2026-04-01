@@ -1,0 +1,213 @@
+# ProjectB/coach_app.py
+"""
+Entry point do CoachApp local.
+Roda pystray na thread principal e o loop asyncio em thread separada.
+"""
+import asyncio
+import logging
+import os
+import sys
+import threading
+
+from dotenv import load_dotenv
+
+# Resolve diretorio base: funciona tanto em dev quanto no .exe (PyInstaller one-dir)
+if getattr(sys, "frozen", False):
+    _BASE_DIR = os.path.dirname(sys.executable)
+else:
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+load_dotenv(os.path.join(_BASE_DIR, ".env"))
+
+import httpx
+
+from live_coach import LiveCoachSession
+from tray_icon import TrayIcon
+
+# Logging para arquivo (console=False no .exe nao mostra nada)
+_log_file = os.path.join(_BASE_DIR, "coach_app.log")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(_log_file, encoding="utf-8"),
+    ],
+)
+logger = logging.getLogger("coach_app")
+logger.info("CoachApp iniciando - base_dir=%s", _BASE_DIR)
+
+# Constantes
+BACKEND_URL = os.environ.get("BACKEND_URL", "https://lol-coach-backend-z4b7.onrender.com")
+# Nunca embuta o segredo do app local no binario.
+LOCAL_APP_TOKEN = (os.environ.get("LOCAL_APP_TOKEN") or os.environ.get("APP_TOKEN") or "").strip()
+POLL_INTERVAL = 10  # segundos entre checks de status
+
+
+def _build_auth_headers() -> dict[str, str] | None:
+    if not LOCAL_APP_TOKEN:
+        return None
+    return {"X-App-Token": LOCAL_APP_TOKEN}
+
+
+async def _upload(session: LiveCoachSession, tray: TrayIcon) -> str | None:
+    """Envia dados da partida ao backend. Retorna riot_id ou None em caso de falha."""
+    headers = _build_auth_headers()
+    if not headers:
+        logger.error("LOCAL_APP_TOKEN/APP_TOKEN nao configurado no CoachApp. Configure o .env antes de enviar uploads.")
+        return None
+
+    payload = session.get_postgame_payload()
+    if not payload:
+        logger.warning("Sem dados para upload.")
+        return None
+
+    events = []
+    for evt in payload.get("events", []):
+        events.append(
+            {
+                "event_type": evt.get("event_type", ""),
+                "game_time": evt.get("game_time", "00:00"),
+                "champion": evt.get("champion", ""),
+                "killer": evt.get("killer"),
+                "victim": evt.get("victim"),
+                "detail": evt.get("detail", ""),
+                "assisters": evt.get("assisters", []),
+                "minimap_base64": evt.get("minimap_base64", ""),
+            }
+        )
+
+    riot_id = payload.get("riot_id") or ""
+    match_id = payload.get("match_id") or ""
+    player_map = payload.get("player_map") or {}
+
+    body = {"riot_id": riot_id, "events": events, "match_id": match_id, "player_map": player_map}
+
+    # Warmup: acorda o Render (cold start pode levar 30-60s)
+    try:
+        logger.info("Acordando backend (warmup)...")
+        async with httpx.AsyncClient(timeout=60.0) as warmup:
+            await warmup.get(f"{BACKEND_URL}/")
+        logger.info("Backend respondeu - enviando upload...")
+    except Exception:
+        logger.warning("Warmup falhou - tentando upload mesmo assim...")
+
+    try:
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            resp = await client.post(
+                f"{BACKEND_URL}/local/upload",
+                json=body,
+                headers=headers,
+            )
+            if resp.status_code == 401:
+                logger.error("Upload rejeitado: LOCAL_APP_TOKEN invalido ou ausente (401 Unauthorized)")
+                return None
+            if resp.status_code == 500:
+                logger.error("Erro no servidor backend (500): %s", resp.text)
+                return None
+            resp.raise_for_status()
+            logger.info("Upload aceito: %s", resp.json())
+            return riot_id
+    except httpx.ConnectError:
+        logger.error("Nao conseguiu conectar ao backend - servidor pode estar dormindo (Render cold start)")
+        return None
+    except httpx.TimeoutException:
+        logger.error("Timeout ao enviar upload (90s) - servidor pode estar sobrecarregado")
+        return None
+    except Exception as e:
+        logger.error("Erro no upload: %s", e)
+        return None
+
+
+async def _poll_status(riot_id: str, tray: TrayIcon) -> None:
+    """Faz polling ate analise estar pronta, entao muda icone para verde."""
+    headers = _build_auth_headers()
+    if not headers:
+        logger.error("Polling abortado: LOCAL_APP_TOKEN/APP_TOKEN nao configurado.")
+        return
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        for attempt in range(60):  # maximo 10 minutos (60 * 10s)
+            await asyncio.sleep(POLL_INTERVAL)
+            try:
+                resp = await client.get(
+                    f"{BACKEND_URL}/local/status",
+                    params={"riot_id": riot_id},
+                    headers=headers,
+                )
+                data = resp.json()
+                logger.info("[poll %s/60] riot_id=%s status=%s", attempt + 1, riot_id, data)
+                if data.get("ready"):
+                    logger.info("Analise pronta! match_id=%s", data.get("match_id"))
+                    tray.set_state("ready")
+                    return
+            except Exception as e:
+                logger.debug("Erro ao checar status: %s", e)
+    logger.warning("Timeout aguardando analise - icone mantido em uploading.")
+
+
+async def coach_loop(tray: TrayIcon, stop_event: threading.Event) -> None:
+    """Loop principal: aguarda jogo -> grava -> envia -> poll."""
+    while not stop_event.is_set():
+        logger.info("Aguardando LoL iniciar...")
+        tray.set_state("waiting")
+
+        session = LiveCoachSession()
+        try:
+            await session.start()
+        except Exception as e:
+            logger.error("Erro ao iniciar sessao: %s", e)
+            await asyncio.sleep(10.0)
+            continue
+
+        while session.is_running and not stop_event.is_set():
+            active = getattr(session, "_player_name", None)
+            if active:
+                champion = getattr(session, "_player_champion", None) or ""
+                tray.set_state("recording", detail=champion)
+            await asyncio.sleep(1.0)
+
+        if stop_event.is_set():
+            await session.stop()
+            break
+
+        logger.info("Partida encerrada. Iniciando upload...")
+        tray.set_state("uploading")
+
+        riot_id = await _upload(session, tray)
+        if riot_id:
+            await _poll_status(riot_id, tray)
+        else:
+            tray.set_state("waiting")
+
+        await asyncio.sleep(5.0)
+
+
+def _run_async_loop(tray: TrayIcon, stop_event: threading.Event) -> None:
+    """Roda o loop asyncio em thread separada."""
+    asyncio.run(coach_loop(tray, stop_event))
+
+
+def main() -> None:
+    stop_event = threading.Event()
+
+    def on_quit():
+        logger.info("Encerrando CoachApp...")
+        stop_event.set()
+
+    tray = TrayIcon(on_quit=on_quit)
+
+    t = threading.Thread(
+        target=_run_async_loop,
+        args=(tray, stop_event),
+        daemon=True,
+    )
+    t.start()
+
+    tray.run()
+    t.join(timeout=5.0)
+    logger.info("CoachApp encerrado.")
+
+
+if __name__ == "__main__":
+    main()

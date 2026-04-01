@@ -1,0 +1,68 @@
+# -*- mode: python ; coding: utf-8 -*-
+"""
+PyInstaller spec para o CoachApp.
+Gera uma pasta one-dir em dist/CoachApp/.
+"""
+
+block_cipher = None
+
+a = Analysis(
+    ["coach_app.py"],
+    pathex=["."],
+    binaries=[],
+    datas=[
+        # config.json padrão incluído (usuário pode sobrescrever)
+        ("config.json", "."),
+    ],
+    hiddenimports=[
+        "pystray._win32",
+        "PIL._imagingtk",
+        "PIL.Image",
+        "PIL.ImageDraw",
+        "mss.windows",
+        "httpx",
+        "app_config",
+        "tray_icon",
+        "live_coach",
+        "live_game_client",
+        "minimap_capture",
+        "settings",
+        "db",
+        "schemas",
+    ],
+    hookspath=[],
+    runtime_hooks=[],
+    excludes=["tkinter", "matplotlib", "numpy", "scipy"],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name="CoachApp",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    console=False,
+    windowed=True,
+    icon=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name="CoachApp",
+)
