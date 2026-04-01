@@ -5,18 +5,6 @@
   "commit_docs": false,
   "parallelization": true,
   "search_gitignored": false,
-  "sub_repos": [
-    "ProjectB",
-    "ProjectB-frontend"
-  ],
-  "planning": {
-    "commit_docs": false,
-    "search_gitignored": false,
-    "sub_repos": [
-      "ProjectB",
-      "ProjectB-frontend"
-    ]
-  },
   "git": {
     "branching_strategy": "none",
     "phase_branch_template": "gsd/phase-{phase}-{slug}",

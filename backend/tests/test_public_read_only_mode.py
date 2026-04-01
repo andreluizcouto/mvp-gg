@@ -9,6 +9,12 @@ import context_builder
 import evidence_pipeline
 import main
 import riot_client
+from tests.fixtures.coaching_contracts import (
+    failed_snapshot,
+    insufficient_snapshot,
+    pending_snapshot,
+    ready_snapshot,
+)
 
 
 def _feedback_payload():
@@ -667,10 +673,10 @@ def test_coaching_status_exposes_safe_external_states(monkeypatch):
     main._edge_client_hits.clear()
 
     snapshots = {
-        "BR1_READY": {"external_status": "ready", "has_analysis_text": True},
-        "BR1_PENDING": {"external_status": "pending", "has_analysis_text": False},
-        "BR1_INSUF": {"external_status": "insufficient_data", "has_analysis_text": False},
-        "BR1_FAILED": {"external_status": "failed", "has_analysis_text": False},
+        "BR1_READY": ready_snapshot(),
+        "BR1_PENDING": pending_snapshot(),
+        "BR1_INSUF": insufficient_snapshot(),
+        "BR1_FAILED": failed_snapshot(),
     }
 
     async def fake_get_pipeline_snapshot(match_id, riot_id):
@@ -761,14 +767,7 @@ def test_coaching_get_blocks_analysis_without_local_evidence(monkeypatch):
         return "analise preexistente"
 
     async def fake_get_pipeline_snapshot(_match_id, riot_id):
-        return {
-            "stage": "delivery",
-            "status": "ready",
-            "source": "riot_only",
-            "reason_codes": [],
-            "external_status": "ready",
-            "has_analysis_text": True,
-        }
+        return ready_snapshot() | {"source": "riot_only"}
 
     async def fake_get_pending_local(_match_id, _riot_id):
         return None
@@ -786,6 +785,101 @@ def test_coaching_get_blocks_analysis_without_local_evidence(monkeypatch):
     assert payload["has_analysis"] is False
     assert payload["analysis"] is None
     assert payload["message"] == "Coach indisponivel, baixe o app e jogue uma partida."
+
+
+def test_coaching_get_hides_analysis_on_riot_id_mismatch(monkeypatch):
+    _disable_redis(monkeypatch)
+    monkeypatch.setattr(main, "SUPABASE_URL", "")
+    monkeypatch.setattr(main, "SUPABASE_KEY", "")
+    monkeypatch.setattr(main, "PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS", 60)
+    monkeypatch.setattr(main, "PUBLIC_READ_RATE_LIMIT_WINDOW_SECONDS", 60)
+    monkeypatch.setattr(main, "EDGE_CLIENT_RATE_LIMIT_MAX_REQUESTS", 999)
+    monkeypatch.setattr(main, "EDGE_CLIENT_RATE_LIMIT_WINDOW_SECONDS", 60)
+    main._public_read_hits.clear()
+    main._edge_client_hits.clear()
+
+    async def fake_get_coaching_analysis(_match_id, riot_id=""):
+        return "analise privada do dono"
+
+    async def fake_get_pipeline_snapshot(_match_id, riot_id):
+        if riot_id == "owner#BR1":
+            return ready_snapshot()
+        return insufficient_snapshot()
+
+    async def fake_get_pending_local(_match_id, _riot_id):
+        return None
+
+    monkeypatch.setattr(main, "get_coaching_analysis", fake_get_coaching_analysis)
+    monkeypatch.setattr(main, "get_pipeline_snapshot", fake_get_pipeline_snapshot)
+    monkeypatch.setattr(main, "get_pending_local_evidence", fake_get_pending_local)
+
+    client = TestClient(main.app)
+    owner = client.get("/coaching/BR1_OWNER", params={"riot_id": "owner#BR1"})
+    viewer = client.get("/coaching/BR1_OWNER", params={"riot_id": "viewer#BR1"})
+
+    assert owner.status_code == 200
+    owner_payload = owner.json()
+    assert owner_payload["status"] == "ready"
+    assert owner_payload["has_analysis"] is True
+    assert owner_payload["analysis"] == "analise privada do dono"
+
+    assert viewer.status_code == 200
+    viewer_payload = viewer.json()
+    assert viewer_payload["status"] == "insufficient_data"
+    assert viewer_payload["has_analysis"] is False
+    assert viewer_payload["analysis"] is None
+    assert viewer_payload["message"] == "Coach indisponivel, baixe o app e jogue uma partida."
+
+
+def test_coaching_status_hides_ready_on_riot_id_mismatch(monkeypatch):
+    _disable_redis(monkeypatch)
+    monkeypatch.setattr(main, "SUPABASE_URL", "")
+    monkeypatch.setattr(main, "SUPABASE_KEY", "")
+    monkeypatch.setattr(main, "PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS", 60)
+    monkeypatch.setattr(main, "PUBLIC_READ_RATE_LIMIT_WINDOW_SECONDS", 60)
+    monkeypatch.setattr(main, "EDGE_CLIENT_RATE_LIMIT_MAX_REQUESTS", 999)
+    monkeypatch.setattr(main, "EDGE_CLIENT_RATE_LIMIT_WINDOW_SECONDS", 60)
+    main._public_read_hits.clear()
+    main._edge_client_hits.clear()
+
+    async def fake_get_pipeline_snapshot(match_id, riot_id):
+        if riot_id == "owner#BR1":
+            return ready_snapshot()
+        return insufficient_snapshot()
+
+    async def fake_get_pending_local(_match_id, _riot_id):
+        return None
+
+    monkeypatch.setattr(main, "get_pipeline_snapshot", fake_get_pipeline_snapshot)
+    monkeypatch.setattr(main, "get_pending_local_evidence", fake_get_pending_local)
+
+    client = TestClient(main.app)
+    owner = client.get("/coaching/status", params={"ids": "BR1_OWNER", "riot_id": "owner#BR1"})
+    viewer = client.get("/coaching/status", params={"ids": "BR1_OWNER", "riot_id": "viewer#BR1"})
+
+    assert owner.status_code == 200
+    assert viewer.status_code == 200
+    assert owner.json()["BR1_OWNER"]["status"] == "ready"
+    assert owner.json()["BR1_OWNER"]["has_analysis"] is True
+    assert viewer.json()["BR1_OWNER"]["status"] == "insufficient_data"
+    assert viewer.json()["BR1_OWNER"]["has_analysis"] is False
+
+
+def test_coaching_status_requires_riot_id_when_configured(monkeypatch):
+    _disable_redis(monkeypatch)
+    monkeypatch.setattr(main, "SUPABASE_URL", "")
+    monkeypatch.setattr(main, "SUPABASE_KEY", "")
+    monkeypatch.setattr(main, "REQUIRE_RIOT_ID_FOR_COACHING", True)
+    monkeypatch.setattr(main, "PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS", 60)
+    monkeypatch.setattr(main, "PUBLIC_READ_RATE_LIMIT_WINDOW_SECONDS", 60)
+    monkeypatch.setattr(main, "EDGE_CLIENT_RATE_LIMIT_MAX_REQUESTS", 999)
+    monkeypatch.setattr(main, "EDGE_CLIENT_RATE_LIMIT_WINDOW_SECONDS", 60)
+    main._public_read_hits.clear()
+    main._edge_client_hits.clear()
+
+    client = TestClient(main.app)
+    response = client.get("/coaching/status", params={"ids": "BR1_REQUIRED"})
+    assert response.status_code == 422
 
 
 def test_coaching_regenerate_is_blocked_for_non_paying(monkeypatch):

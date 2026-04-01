@@ -13,8 +13,8 @@ This roadmap improves an already working brownfield prototype into a trustworthy
 - [ ] **Phase 1: Trust Boundaries and Security Foundation** - harden backend ownership, validation, and auth-ready architecture
 - [x] **Phase 2: Evidence Pipeline and Analysis Contracts** - make analysis inputs complete, validated, and deterministic
 - [x] **Phase 3: Coaching Quality and Consistency** - improve AI output reliability and usefulness (completed 2026-04-01)
-- [ ] **Phase 4: Match Experience and Trustworthy UX** - present stats and coaching in a clearer, more polished browser flow
-- [ ] **Phase 5: Regression Safety Net** - add tests and verification around the highest-risk paths
+- [x] **Phase 4: Match Experience and Trustworthy UX** - present stats and coaching in a clearer, more polished browser flow
+- [x] **Phase 5: Regression Safety Net** - add tests and verification around the highest-risk paths (tests written, awaiting execution verification)
 - [ ] **Phase 6: Community-Ready Hardening** - finalize launch-readiness, resilience, and trust signals
 
 ## Phase Details
@@ -78,9 +78,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Fix IA badge gating (status=ready only), smart back button (D-02), inline match load error with retry actions (D-04)
-- [ ] 04-02-PLAN.md — Rewrite CoachingSection with 5 status states (ready/pending/failed/unavailable/private), create AnalysisStatusBlock trust-signal component (D-12)
-- [ ] 04-03-PLAN.md — Restructure match page layout (coaching above scoreboard D-09), wire coaching API status, disabled tabs with "Em breve" (D-11), fix scoreboard empty copy
+- [x] 04-01-PLAN.md — Fix IA badge gating (status=ready only), smart back button (D-02), inline match load error with retry actions (D-04)
+- [x] 04-02-PLAN.md — Rewrite CoachingSection with 5 status states (ready/pending/failed/unavailable/private), create AnalysisStatusBlock trust-signal component (D-12)
+- [x] 04-03-PLAN.md — Restructure match page layout (coaching above scoreboard D-09), wire coaching API status, disabled tabs with "Em breve" (D-11), fix scoreboard empty copy
 
 ### Phase 5: Regression Safety Net
 **Goal**: Protect the highest-risk product paths with tests and repeatable verification.
@@ -93,8 +93,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 05-01: Add backend test coverage for critical flows and fixtures
-- [ ] 05-02: Add frontend smoke and rendering coverage for key user journeys
+- [x] 05-01: Add backend test coverage for critical flows and fixtures
+- [x] 05-02: Add frontend smoke and rendering coverage for key user journeys
 
 ### Phase 6: Community-Ready Hardening
 **Goal**: Make the product feel safe, credible, and ready for broader community feedback.
@@ -117,6 +117,6 @@ Plans:
 | 1. Trust Boundaries and Security Foundation | 0/3 | Not started | - |
 | 2. Evidence Pipeline and Analysis Contracts | 3/3 | Completed | 2026-04-01 |
 | 3. Coaching Quality and Consistency | 3/3 | Complete   | 2026-04-01 |
-| 4. Match Experience and Trustworthy UX | 0/3 | Not started | - |
-| 5. Regression Safety Net | 0/2 | Not started | - |
+| 4. Match Experience and Trustworthy UX | 3/3 | Complete | 2026-04-01 |
+| 5. Regression Safety Net | 2/2 | Complete (pending test execution) | 2026-04-01 |
 | 6. Community-Ready Hardening | 0/2 | Not started | - |

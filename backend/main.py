@@ -263,9 +263,9 @@ def _missing_local_evidence(snapshot: dict | None) -> bool:
         return False
 
     source = str(snapshot.get("source", "")).strip().lower()
-    if source in {"riot_only", "localhost_only"}:
+    if source == "riot_only":
         return True
-    if source == "riot_plus_local":
+    if source in {"riot_plus_local", "localhost_only"}:
         return False
 
     reasons = [str(code).strip().lower() for code in snapshot.get("reason_codes", []) if str(code).strip()]

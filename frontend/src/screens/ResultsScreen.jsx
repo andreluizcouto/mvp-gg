@@ -583,18 +583,14 @@ export default function ResultsScreen() {
         )}
       </div>
 
-      {/* ── Analysis Status + Coaching IA (somente via perfil, não link direto) ── */}
-      {!isDirectLink && (
-        <>
-          <AnalysisStatusBlock status={coachingDisplayStatus} />
-          <CoachingSection
-            analysis={analysis}
-            hasAnalysis={hasAnalysis}
-            loading={coachingLoading}
-            status={coachingDisplayStatus}
-          />
-        </>
-      )}
+      {/* ── Analysis Status + Coaching IA ─────────────────────────────────────── */}
+      <AnalysisStatusBlock status={coachingDisplayStatus} />
+      <CoachingSection
+        analysis={analysis}
+        hasAnalysis={hasAnalysis}
+        loading={coachingLoading}
+        status={coachingDisplayStatus}
+      />
 
     </div>
   )
