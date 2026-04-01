@@ -1,4 +1,4 @@
-export const DDV = "16.6.1"
+export const DDV = "16.7.1"
 
 export const POSITION_MAPS = {
   label:  { TOP: "Top", JUNGLE: "Jungle", MIDDLE: "Mid", BOTTOM: "ADC", UTILITY: "Suporte" },

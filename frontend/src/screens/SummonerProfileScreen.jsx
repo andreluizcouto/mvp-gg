@@ -74,18 +74,18 @@ function InlineScoreboard({ data, fallbackTag }) {
         return (
           <div key={ti}>
             <div
-              className="flex items-center justify-between px-4 py-2"
+              className="flex items-center justify-between px-4 py-2.5"
               style={{ background: teamBg }}
             >
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-[11px] uppercase tracking-wider" style={{ color: teamColor }}>
+                <span className="font-semibold text-[12px] uppercase tracking-wider" style={{ color: teamColor }}>
                   {resultLabel}
                 </span>
-                <span className="text-[10px] text-black-400">
+                <span className="text-[11px] text-black-400">
                   ({sideLabel})
                 </span>
               </div>
-              <span className="font-mono text-[11px] text-black-200">
+              <span className="font-mono text-[12px] text-black-200">
                 {teamKills} / {teamDeaths} / {teamAssists}
               </span>
             </div>
@@ -93,15 +93,15 @@ function InlineScoreboard({ data, fallbackTag }) {
             {/* Gradiente divisor entre header e linhas do scoreboard */}
             <div className="w-full h-[1.5px] bg-gradient-to-r from-black-800/0 via-blue-400/15 to-black-800/0 scoreboard-divider" />
 
-            <div className="grid grid-cols-[28px_88px_64px_34px_44px_minmax(96px,1fr)_28px_124px] items-center gap-1.5 px-3 py-1 bg-black-900/30">
+            <div className="grid grid-cols-[32px_112px_72px_40px_52px_minmax(110px,1fr)_34px_146px] items-center gap-2 px-3 py-1.5 bg-black-900/30">
               <div />
-              <div className="text-[9px] text-black-400 uppercase tracking-wider">Jogador</div>
-              <div className="text-center text-[9px] text-black-400 uppercase tracking-wider">KDA</div>
-              <div className="text-center text-[9px] text-black-400 uppercase tracking-wider">KP</div>
-              <div className="text-center text-[9px] text-black-400 uppercase tracking-wider">CS</div>
-              <div className="text-[9px] text-black-400 uppercase tracking-wider">Dano</div>
-              <div className="text-center text-[9px] text-black-400 uppercase tracking-wider">Vis</div>
-              <div className="text-center text-[9px] text-black-400 uppercase tracking-wider">Items</div>
+              <div className="text-[10px] text-black-400 uppercase tracking-wider">Jogador</div>
+              <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KDA</div>
+              <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KP</div>
+              <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">CS</div>
+              <div className="text-[10px] text-black-400 uppercase tracking-wider">Dano</div>
+              <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">Vis</div>
+              <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">Items</div>
             </div>
 
             {/* Gradiente divisor sutil após header das colunas */}
@@ -116,10 +116,10 @@ function InlineScoreboard({ data, fallbackTag }) {
               return (
                 <div
                   key={pi}
-                  className="grid grid-cols-[28px_88px_64px_34px_44px_minmax(96px,1fr)_28px_124px] items-center gap-1.5 px-3 py-2 hover:bg-white/[0.02] transition-colors"
+                  className="grid grid-cols-[32px_112px_72px_40px_52px_minmax(110px,1fr)_34px_146px] items-center gap-2 px-3 py-2.5 hover:bg-white/[0.02] transition-colors"
                   style={isTarget ? { background: "rgba(200,155,60,0.08)", borderLeft: "2px solid rgba(200,155,60,0.5)" } : {}}
                 >
-                  <div className="w-7 h-7 rounded overflow-hidden border border-white/10 bg-black-600">
+                  <div className="w-8 h-8 rounded overflow-hidden border border-white/10 bg-black-600">
                     <img
                       src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/${player.champion}.png`}
                       alt={player.champion}
@@ -132,51 +132,51 @@ function InlineScoreboard({ data, fallbackTag }) {
                     {profilePath ? (
                       <a
                         href={profilePath}
-                        className="text-[10px] text-white/80 truncate hover:text-blue-400 hover:underline cursor-pointer transition-colors block max-w-full text-left"
+                         className="text-[11px] text-white/85 truncate hover:text-blue-400 hover:underline cursor-pointer transition-colors block max-w-full text-left"
                         onClick={e => e.stopPropagation()}
                       >
                         {player.summoner_name || player.champion}
                       </a>
                     ) : (
-                      <p className="text-[10px] text-white/80 truncate">
+                       <p className="text-[11px] text-white/85 truncate">
                         {player.summoner_name || player.champion}
                       </p>
                     )}
                     {player.position && (
-                      <span className="text-[8px] text-black-400 bg-black-600/80 rounded px-1 py-0.5 inline-block mt-0.5">
+                       <span className="text-[9px] text-black-400 bg-black-600/80 rounded px-1 py-0.5 inline-block mt-0.5">
                         {getPositionLabel(player.position, "short")}
                       </span>
                     )}
                   </div>
 
                   <div className="text-center">
-                    <span className="text-[10px] text-white/90">{player.kills}</span>
-                    <span className="text-[9px] text-white/25"> / </span>
-                    <span className="text-[10px] text-red-400">{player.deaths}</span>
-                    <span className="text-[9px] text-white/25"> / </span>
-                    <span className="text-[10px] text-white/90">{player.assists}</span>
+                     <span className="text-[11px] text-white/90">{player.kills}</span>
+                     <span className="text-[10px] text-white/25"> / </span>
+                     <span className="text-[11px] text-red-400">{player.deaths}</span>
+                     <span className="text-[10px] text-white/25"> / </span>
+                     <span className="text-[11px] text-white/90">{player.assists}</span>
                   </div>
 
                   <div className="text-center">
                     {player.kill_participation_pct != null && player.kill_participation_pct !== "" ? (
-                      <span className="text-[9px] text-black-300">{player.kill_participation_pct}%</span>
+                       <span className="text-[10px] text-black-300">{player.kill_participation_pct}%</span>
                     ) : (
-                      <span className="text-[9px] text-black-500">—</span>
+                       <span className="text-[10px] text-black-500">—</span>
                     )}
                   </div>
 
                   <div className="text-center">
                     {player.cs_per_min ? (
-                      <span className="text-[9px] text-black-300">{player.cs_per_min}</span>
+                       <span className="text-[10px] text-black-300">{player.cs_per_min}</span>
                     ) : player.cs != null ? (
-                      <span className="text-[9px] text-black-300">{player.cs}</span>
+                       <span className="text-[10px] text-black-300">{player.cs}</span>
                     ) : (
-                      <span className="text-[9px] text-black-500">—</span>
+                       <span className="text-[10px] text-black-500">—</span>
                     )}
                   </div>
 
                   <div className="flex items-center gap-1 min-w-0">
-                    <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                     <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${isTopDmg ? "shadow-[0_0_6px_1px_currentColor]" : ""}`}
                         style={{
@@ -186,7 +186,7 @@ function InlineScoreboard({ data, fallbackTag }) {
                         }}
                       />
                     </div>
-                    <span className={`text-[8px] w-8 text-right ${isTopDmg ? "text-black-100 font-bold" : "text-black-400"}`}>
+                     <span className={`text-[9px] w-10 text-right ${isTopDmg ? "text-black-100 font-bold" : "text-black-400"}`}>
                       {player.total_damage >= 1000
                         ? `${(player.total_damage / 1000).toFixed(1)}k`
                         : player.total_damage}
@@ -195,13 +195,13 @@ function InlineScoreboard({ data, fallbackTag }) {
 
                   <div className="text-center">
                     {player.vision_score != null
-                      ? <span className="text-[9px] text-black-400">{player.vision_score}</span>
-                      : <span className="text-[9px] text-black-500">â€”</span>}
+                       ? <span className="text-[10px] text-black-400">{player.vision_score}</span>
+                       : <span className="text-[10px] text-black-500">—</span>}
                   </div>
 
-                  <div className="flex justify-center gap-0.5 min-w-0">
+                   <div className="flex justify-center gap-1 min-w-0">
                     {(player.items ?? []).map((itemId, ii) => (
-                      <div key={ii} className="w-4 h-4 rounded bg-black-600/50 overflow-hidden">
+                       <div key={ii} className="w-5 h-5 rounded bg-black-600/50 overflow-hidden">
                         {itemId > 0 && (
                           <img
                             src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/item/${itemId}.png`}
