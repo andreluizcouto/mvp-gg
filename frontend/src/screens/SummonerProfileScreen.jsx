@@ -56,192 +56,177 @@ function InlineScoreboard({ data, fallbackTag }) {
   if (!data?.teams) return null
 
   return (
-    <div className="rounded-lg border border-black-800/40 w-full max-w-[1200px] mx-auto overflow-hidden">
+    <div className="rounded-lg border border-black-800/40 w-full max-w-[1240px] mx-auto overflow-hidden">
       <div className="w-full">
-      {data.teams.map((team, ti) => {
-        const isBlue = team.side === "blue"
-        const isWin = team.win
-        const teamColor = isWin ? "#4AC97E" : "#F03A38"
-        const teamBg = isWin ? "rgba(74,201,126,0.08)" : "rgba(240,58,56,0.08)"
-        const barColor = isWin ? "rgba(74,201,126,0.7)" : "rgba(240,58,56,0.7)"
-        const sideLabel = isBlue ? "Lado Azul" : "Lado Vermelho"
-        const resultLabel = isWin ? "Vitória" : "Derrota"
-        const maxDmg = Math.max(...team.players.map(p => p.total_damage), 1)
-        const teamKills = team.players.reduce((sum, p) => sum + (p.kills || 0), 0)
-        const teamDeaths = team.players.reduce((sum, p) => sum + (p.deaths || 0), 0)
-        const teamAssists = team.players.reduce((sum, p) => sum + (p.assists || 0), 0)
+        {data.teams.map((team, ti) => {
+          const isBlue = team.side === "blue"
+          const isWin = team.win
+          const teamColor = isWin ? "#4AC97E" : "#F03A38"
+          const teamBg = isWin ? "rgba(74,201,126,0.08)" : "rgba(240,58,56,0.08)"
+          const barColor = isWin ? "rgba(74,201,126,0.7)" : "rgba(240,58,56,0.7)"
+          const sideLabel = isBlue ? "Lado Azul" : "Lado Vermelho"
+          const resultLabel = isWin ? "Vitória" : "Derrota"
+          const maxDmg = Math.max(...team.players.map(p => p.total_damage), 1)
+          const teamKills = team.players.reduce((sum, p) => sum + (p.kills || 0), 0)
+          const teamDeaths = team.players.reduce((sum, p) => sum + (p.deaths || 0), 0)
+          const teamAssists = team.players.reduce((sum, p) => sum + (p.assists || 0), 0)
 
-        return (
-          <div key={ti}>
-            <div
-              className="flex items-center justify-between px-4 py-2.5"
-              style={{ background: teamBg }}
-            >
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-[12px] uppercase tracking-wider" style={{ color: teamColor }}>
-                  {resultLabel}
-                </span>
-                <span className="text-[11px] text-black-400">
-                  ({sideLabel})
-                </span>
+          return (
+            <div key={ti}>
+              <div className="flex items-center justify-between px-4 py-2.5" style={{ background: teamBg }}>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-[12px] uppercase tracking-wider" style={{ color: teamColor }}>
+                    {resultLabel}
+                  </span>
+                  <span className="text-[11px] text-black-400">({sideLabel})</span>
+                </div>
+                <span className="font-mono text-[12px] text-black-200">{teamKills} / {teamDeaths} / {teamAssists}</span>
               </div>
-              <span className="font-mono text-[12px] text-black-200">
-                {teamKills} / {teamDeaths} / {teamAssists}
-              </span>
-            </div>
 
-            {/* Gradiente divisor entre header e linhas do scoreboard */}
-            <div className="w-full h-[1.5px] bg-gradient-to-r from-black-800/0 via-blue-400/15 to-black-800/0 scoreboard-divider" />
+              <div className="w-full h-[1.5px] bg-gradient-to-r from-black-800/0 via-blue-400/15 to-black-800/0 scoreboard-divider" />
 
-            <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(220px,0.85fr)] items-center gap-2 px-3 py-1.5 bg-black-900/30">
-              <div className="text-[10px] text-black-400 uppercase tracking-wider">Jogador / Items</div>
-                <div className="grid grid-cols-5 gap-1.5">
-                <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KDA</div>
-                <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KP</div>
-                <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">CS</div>
-                <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">Dano</div>
-                <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">Vis</div>
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-black-900/30">
+                <div className="flex-1 min-w-0 text-[10px] text-black-400 uppercase tracking-wider">Jogador / Items</div>
+                <div className="w-[320px] grid grid-cols-5 gap-1 text-center text-[10px] text-black-400 uppercase tracking-wider">
+                  <div>KDA</div>
+                  <div>KP</div>
+                  <div>CS</div>
+                  <div>Dano</div>
+                  <div>Vis</div>
+                </div>
               </div>
-            </div>
 
-            {/* Gradiente divisor sutil após header das colunas */}
-            <div className="w-full h-[1.5px] bg-gradient-to-r from-black-800/0 via-blue-400/15 to-black-800/0 scoreboard-divider" />
+              <div className="w-full h-[1.5px] bg-gradient-to-r from-black-800/0 via-blue-400/15 to-black-800/0 scoreboard-divider" />
 
-            {team.players.map((player, pi) => {
-              const isTarget = player.is_target
-              const dmgPct = ((player.total_damage / maxDmg) * 100).toFixed(0)
-              const isTopDmg = player.total_damage === maxDmg
-              const profilePath = buildSummonerProfilePath(player.summoner_name, fallbackTag)
+              {team.players.map((player, pi) => {
+                const isTarget = player.is_target
+                const dmgPct = ((player.total_damage / maxDmg) * 100).toFixed(0)
+                const isTopDmg = player.total_damage === maxDmg
+                const profilePath = buildSummonerProfilePath(player.summoner_name, fallbackTag)
 
-              return (
-                <div
-                  key={pi}
-                  className="grid grid-cols-[minmax(0,1.15fr)_minmax(220px,0.85fr)] items-start gap-2 px-3 py-2 hover:bg-white/[0.02] transition-colors"
-                  style={isTarget ? { background: "rgba(200,155,60,0.08)", borderLeft: "2px solid rgba(200,155,60,0.5)" } : {}}
-                >
-                  <div className="min-w-0 flex items-start gap-1.5">
-                    <div className="w-7 h-7 rounded overflow-hidden border border-white/10 bg-black-600 flex-shrink-0">
-                      <img
-                        src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/${player.champion}.png`}
-                        alt={player.champion}
-                        className="w-full h-full object-cover"
-                        onError={e => { e.target.style.display = "none" }}
-                      />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      {profilePath ? (
-                        <a
-                          href={profilePath}
-                          className="text-[11px] text-white/85 truncate hover:text-blue-400 hover:underline cursor-pointer transition-colors block max-w-full text-left"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          {player.summoner_name || player.champion}
-                        </a>
-                      ) : (
-                        <p className="text-[11px] text-white/85 truncate">
-                          {player.summoner_name || player.champion}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-1 mt-0.5">
-                        {player.position && (
-                          <span className="text-[9px] text-black-400 bg-black-600/80 rounded px-1 py-0.5 inline-block">
-                            {getPositionLabel(player.position, "short")}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1 grid grid-rows-2 gap-0.5 w-fit max-w-full">
-                        <div className="flex items-center gap-1">
-                          {[0, 1, 2, 6].map((slotIdx) => {
-                            const itemId = player.items?.[slotIdx] ?? 0
-                            return (
-                              <div key={`top-${slotIdx}`} className="w-[18px] h-[18px] rounded bg-black-600/50 overflow-hidden flex-shrink-0">
-                                {itemId > 0 && (
-                                  <img
-                                    src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/item/${itemId}.png`}
-                                    alt=""
-                                    className="w-full h-full object-cover"
-                                    onError={e => { e.target.style.display = "none" }}
-                                  />
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {[3, 4, 5].map((slotIdx) => {
-                            const itemId = player.items?.[slotIdx] ?? 0
-                            return (
-                              <div key={`bot-${slotIdx}`} className="w-[18px] h-[18px] rounded bg-black-600/50 overflow-hidden flex-shrink-0">
-                                {itemId > 0 && (
-                                  <img
-                                    src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/item/${itemId}.png`}
-                                    alt=""
-                                    className="w-full h-full object-cover"
-                                    onError={e => { e.target.style.display = "none" }}
-                                  />
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-5 gap-1.5 items-center min-w-0">
-                    <div className="text-center">
-                      <span className="text-[11px] text-white/90">{player.kills}</span>
-                      <span className="text-[10px] text-white/25"> / </span>
-                      <span className="text-[11px] text-red-400">{player.deaths}</span>
-                      <span className="text-[10px] text-white/25"> / </span>
-                      <span className="text-[11px] text-white/90">{player.assists}</span>
-                    </div>
-                    <div className="text-center">
-                      {player.kill_participation_pct != null && player.kill_participation_pct !== "" ? (
-                        <span className="text-[10px] text-black-300">{player.kill_participation_pct}%</span>
-                      ) : (
-                        <span className="text-[10px] text-black-500">—</span>
-                      )}
-                    </div>
-                    <div className="text-center">
-                      {player.cs_per_min ? (
-                        <span className="text-[10px] text-black-300">{player.cs_per_min}</span>
-                      ) : player.cs != null ? (
-                        <span className="text-[10px] text-black-300">{player.cs}</span>
-                      ) : (
-                        <span className="text-[10px] text-black-500">—</span>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="h-2 bg-white/5 rounded-full overflow-hidden mb-1">
-                        <div
-                          className={`h-full rounded-full transition-all ${isTopDmg ? "shadow-[0_0_6px_1px_currentColor]" : ""}`}
-                          style={{
-                            width: `${dmgPct}%`,
-                            background: isTopDmg ? (isWin ? "rgba(74,201,126,1)" : "rgba(240,58,56,1)") : barColor,
-                            color: isWin ? "rgba(74,201,126,0.6)" : "rgba(240,58,56,0.6)",
-                          }}
+                return (
+                  <div
+                    key={pi}
+                    className="flex items-start gap-2 px-3 py-2 hover:bg-white/[0.02] transition-colors"
+                    style={isTarget ? { background: "rgba(200,155,60,0.08)", borderLeft: "2px solid rgba(200,155,60,0.5)" } : {}}
+                  >
+                    <div className="flex-1 min-w-0 flex items-start gap-1.5">
+                      <div className="w-7 h-7 rounded overflow-hidden border border-white/10 bg-black-600 flex-shrink-0">
+                        <img
+                          src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/${player.champion}.png`}
+                          alt={player.champion}
+                          className="w-full h-full object-cover"
+                          onError={e => { e.target.style.display = "none" }}
                         />
                       </div>
-                      <div className={`text-[9px] text-right ${isTopDmg ? "text-black-100 font-bold" : "text-black-400"}`}>
-                        {player.total_damage >= 1000
-                          ? `${(player.total_damage / 1000).toFixed(1)}k`
-                          : player.total_damage}
+
+                      <div className="min-w-0 flex-1">
+                        {profilePath ? (
+                          <a
+                            href={profilePath}
+                            className="text-[11px] text-white/85 truncate hover:text-blue-400 hover:underline cursor-pointer transition-colors block max-w-full text-left"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {player.summoner_name || player.champion}
+                          </a>
+                        ) : (
+                          <p className="text-[11px] text-white/85 truncate">{player.summoner_name || player.champion}</p>
+                        )}
+
+                        {player.position && (
+                          <div className="mt-0.5">
+                            <span className="text-[9px] text-black-400 bg-black-600/80 rounded px-1 py-0.5 inline-block">
+                              {getPositionLabel(player.position, "short")}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="mt-1 grid grid-rows-2 gap-0.5 w-fit">
+                          <div className="flex items-center gap-1">
+                            {[0, 1, 2, 6].map((slotIdx) => {
+                              const itemId = player.items?.[slotIdx] ?? 0
+                              return (
+                                <div key={`top-${slotIdx}`} className="w-[18px] h-[18px] rounded bg-black-600/50 overflow-hidden flex-shrink-0">
+                                  {itemId > 0 && (
+                                    <img
+                                      src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/item/${itemId}.png`}
+                                      alt=""
+                                      className="w-full h-full object-cover"
+                                      onError={e => { e.target.style.display = "none" }}
+                                    />
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {[3, 4, 5].map((slotIdx) => {
+                              const itemId = player.items?.[slotIdx] ?? 0
+                              return (
+                                <div key={`bot-${slotIdx}`} className="w-[18px] h-[18px] rounded bg-black-600/50 overflow-hidden flex-shrink-0">
+                                  {itemId > 0 && (
+                                    <img
+                                      src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/item/${itemId}.png`}
+                                      alt=""
+                                      className="w-full h-full object-cover"
+                                      onError={e => { e.target.style.display = "none" }}
+                                    />
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-center">
-                      {player.vision_score != null
-                        ? <span className="text-[10px] text-black-400">{player.vision_score}</span>
-                        : <span className="text-[10px] text-black-500">—</span>}
+
+                    <div className="w-[320px] grid grid-cols-5 gap-1 items-center min-w-0">
+                      <div className="text-center">
+                        <span className="text-[11px] text-white/90">{player.kills}</span>
+                        <span className="text-[10px] text-white/25"> / </span>
+                        <span className="text-[11px] text-red-400">{player.deaths}</span>
+                        <span className="text-[10px] text-white/25"> / </span>
+                        <span className="text-[11px] text-white/90">{player.assists}</span>
+                      </div>
+                      <div className="text-center">
+                        {player.kill_participation_pct != null && player.kill_participation_pct !== ""
+                          ? <span className="text-[10px] text-black-300">{player.kill_participation_pct}%</span>
+                          : <span className="text-[10px] text-black-500">—</span>}
+                      </div>
+                      <div className="text-center">
+                        {player.cs_per_min
+                          ? <span className="text-[10px] text-black-300">{player.cs_per_min}</span>
+                          : player.cs != null
+                            ? <span className="text-[10px] text-black-300">{player.cs}</span>
+                            : <span className="text-[10px] text-black-500">—</span>}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="h-2 bg-white/5 rounded-full overflow-hidden mb-1">
+                          <div
+                            className={`h-full rounded-full transition-all ${isTopDmg ? "shadow-[0_0_6px_1px_currentColor]" : ""}`}
+                            style={{
+                              width: `${dmgPct}%`,
+                              background: isTopDmg ? (isWin ? "rgba(74,201,126,1)" : "rgba(240,58,56,1)") : barColor,
+                              color: isWin ? "rgba(74,201,126,0.6)" : "rgba(240,58,56,0.6)",
+                            }}
+                          />
+                        </div>
+                        <div className={`text-[9px] text-right ${isTopDmg ? "text-black-100 font-bold" : "text-black-400"}`}>
+                          {player.total_damage >= 1000 ? `${(player.total_damage / 1000).toFixed(1)}k` : player.total_damage}
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        {player.vision_score != null
+                          ? <span className="text-[10px] text-black-400">{player.vision_score}</span>
+                          : <span className="text-[10px] text-black-500">—</span>}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        )
-      })}
+                )
+              })}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
