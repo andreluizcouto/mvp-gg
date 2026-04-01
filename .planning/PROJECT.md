@@ -4,7 +4,7 @@
 
 mvp.gg is a web product for League of Legends players who want more than raw match statistics. It combines familiar match-history and match-detail views with AI-driven post-game analysis that explains mistakes, strengths, and improvement opportunities for solo queue players trying to climb.
 
-The current system already spans a web frontend, a cloud API, and a local companion app that collects post-game context from Riot's local APIs. This milestone focuses on turning that prototype into a more trustworthy, consistent, secure, and community-ready product.
+The current system already spans a web frontend, a cloud API, and a local companion app (CoachApp) that collects post-game context from Riot's local APIs. v1.0 focused on turning the prototype into a trustworthy, consistent product with quality coaching output. v1.1 focuses on giving the CoachApp a proper visual interface so users can understand, configure, and trust what the companion app is doing.
 
 ## Core Value
 
@@ -32,6 +32,7 @@ The product must show a solo queue player meaningful errors and strengths they w
 - [ ] Security posture is improved so the codebase is safe to extend toward login, monetization, and user data features
 - [ ] Backend architecture, boundaries, and verification points are strong enough to evolve without trusting critical logic to the frontend
 - [ ] Tests and validation checks cover critical flows and reduce the chance of regressions or unsafe changes
+- [ ] CoachApp desktop companion has a visual interface that explains its function, displays live activity, and lets users configure capture settings
 
 ### Out of Scope
 
@@ -57,6 +58,17 @@ Community perception matters early. The first-use experience should make a playe
 - **Product Scope**: v1 should stay simple and execute well before adding advanced coaching features — early community trust matters more than feature breadth
 - **Data Sources**: Analysis depends on Riot public APIs plus localhost-derived match context from the desktop companion — these integration paths must remain viable
 
+## Current Milestone: v1.1 CoachApp Desktop GUI
+
+**Goal:** Transform the CoachApp from a headless tray-only app into a visually clean, informative, and configurable desktop companion — without losing its lightweight nature.
+
+**Target features:**
+- Main window with "How it works" explanation and app status
+- Visual settings: minimap position (left/right), minimap size with "recommended for AI" label
+- Real-time activity log (events, uploads, errors — local only, no sensitive data)
+- Minimize to system tray on close (preserve current behavior)
+- Modern, lightweight UI (CustomTkinter — Python-native, no heavy dependencies)
+
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
@@ -66,6 +78,9 @@ Community perception matters early. The first-use experience should make a playe
 | Keep v1 intentionally simple and defer chat/reference-comparison/deeper phase coaching | The current need is trust, consistency, and positive feedback, not maximum feature count | - Pending |
 | Treat security as a core requirement before login and monetization arrive | Weak boundaries now create higher risk later when accounts and payments exist | - Pending |
 | Do not trust frontend logic for backend-critical decisions | Security and integrity require server-side enforcement and verification at each stage | - Pending |
+| Use CustomTkinter for CoachApp GUI | Lightweight, modern look, Python-native — avoids Electron/Qt overhead while keeping integration simple with existing pystray/mss/httpx stack | v1.1 |
+| Activity log is local-only (RAM), no sensitive data | Shows events and status, never URLs/tokens/payloads — trust without exposure | v1.1 |
+| Recommend "Large" minimap size for IA accuracy | ~43% screen height (~464px on 1080p) gives enough resolution for champion/icon recognition | v1.1 |
 
 ## Evolution
 
@@ -85,4 +100,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-01 after Phase 03 completion*
+*Last updated: 2026-04-01 after v1.1 milestone start*
