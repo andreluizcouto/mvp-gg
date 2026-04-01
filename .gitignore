@@ -34,3 +34,21 @@ venv/
 # Logs
 *.log
 npm-debug.log*
+
+# Secrets / certs
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Claude / Copilot agent state
+.claude/
+.copilot/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Temp
+*.tmp
+*.bak
