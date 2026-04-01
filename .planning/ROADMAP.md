@@ -19,7 +19,7 @@ This roadmap improves an already working brownfield prototype into a trustworthy
 
 ### v1.1 — MVPApp Desktop GUI
 
-- [ ] **Phase 7: Threading Foundation + EventBus** - restructure main() for three-thread model with thread-safe communication and config locking
+- [x] **Phase 7: Threading Foundation + EventBus** - restructure main() for three-thread model with thread-safe communication and config locking
 - [ ] **Phase 8: GUI Shell + Tray Integration** - dark-themed window that coexists with system tray (hide-on-close, double-click restore)
 - [ ] **Phase 9: Content Panels — Status, How-It-Works, Settings** - informational and configuration panels inside the window shell
 - [ ] **Phase 10: Activity Log + Event Bridge** - real-time color-coded event feed bridged from asyncio to GUI
@@ -140,8 +140,8 @@ The core challenge is a threading integration: CustomTkinter needs the main thre
 **Plans**: 2 plans
 
 Plans:
-- [ ] 07-01-PLAN.md — EventBus module + thread-safe config locking (APP-02, APP-03)
-- [ ] 07-02-PLAN.md — 3-thread model restructure + integration tests (APP-01, APP-02)
+- [x] 07-01-PLAN.md — EventBus module + thread-safe config locking (APP-02, APP-03)
+- [x] 07-02-PLAN.md — 3-thread model restructure + integration tests (APP-01, APP-02)
 
 ### Phase 8: GUI Shell + Tray Integration
 **Goal**: User sees a functional app window that correctly coexists with the system tray — hiding, showing, and persisting across close actions
@@ -206,7 +206,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 7. Threading Foundation + EventBus | 0/2 | Planning complete | - |
+| 7. Threading Foundation + EventBus | 2/2 | Complete | 2026-04-01 |
 | 8. GUI Shell + Tray Integration | 0/? | Not started | - |
 | 9. Content Panels — Status, How-It-Works, Settings | 0/? | Not started | - |
 | 10. Activity Log + Event Bridge | 0/? | Not started | - |
