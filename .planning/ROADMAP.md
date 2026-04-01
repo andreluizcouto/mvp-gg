@@ -137,7 +137,11 @@ The core challenge is a threading integration: CustomTkinter needs the main thre
   2. EventBus messages put from any thread are received by the main thread via after() polling within 200ms
   3. Config changes from any thread are protected by locking — concurrent read-modify-write never produces corrupted or lost writes
   4. App shuts down cleanly from tray "Quit" — all three threads exit without orphan processes or frozen windows
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — EventBus module + thread-safe config locking (APP-02, APP-03)
+- [ ] 07-02-PLAN.md — 3-thread model restructure + integration tests (APP-01, APP-02)
 
 ### Phase 8: GUI Shell + Tray Integration
 **Goal**: User sees a functional app window that correctly coexists with the system tray — hiding, showing, and persisting across close actions
@@ -202,7 +206,7 @@ The core challenge is a threading integration: CustomTkinter needs the main thre
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 7. Threading Foundation + EventBus | 0/? | Not started | - |
+| 7. Threading Foundation + EventBus | 0/2 | Planning complete | - |
 | 8. GUI Shell + Tray Integration | 0/? | Not started | - |
 | 9. Content Panels — Status, How-It-Works, Settings | 0/? | Not started | - |
 | 10. Activity Log + Event Bridge | 0/? | Not started | - |
