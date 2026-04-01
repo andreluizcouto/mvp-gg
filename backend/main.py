@@ -202,6 +202,25 @@ MATCH_PUBLIC_COLUMNS = ",".join([
     "puuid",
     "rank",
 ])
+MATCH_PUBLIC_COLUMNS_FALLBACK = ",".join([
+    "match_id",
+    "riot_id",
+    "summoner_name",
+    "champion",
+    "kills",
+    "deaths",
+    "assists",
+    "win",
+    "duration_min",
+    "position",
+    "cs_per_min",
+    "vision_score",
+    "kill_participation_pct",
+    "damage_share_pct",
+    "items",
+    "allies",
+    "puuid",
+])
 SAFE_EXTERNAL_STATUSES = {"ready", "pending", "insufficient_data", "failed"}
 # Plan artifact marker: insufficient_data|Coach indisponivel
 UNAVAILABLE_COACHING_MESSAGE = "Coach indisponivel, baixe o app e jogue uma partida."
@@ -471,6 +490,39 @@ async def _check_local_upload_limits(request: Request, riot_id: str) -> None:
 
 def _sanitize_match_payload(row: dict) -> dict:
     """Remove campos internos e mantem apenas payload minimo usado pelo frontend."""
+    def _as_int(value, default: int = 0) -> int:
+        if value is None or value == "":
+            return default
+        try:
+            if isinstance(value, bool):
+                return int(value)
+            return int(float(value))
+        except (TypeError, ValueError):
+            return default
+
+    def _as_float(value, default: float = 0.0) -> float:
+        if value is None or value == "":
+            return default
+        try:
+            if isinstance(value, bool):
+                return float(int(value))
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _as_bool(value, default: bool = False) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "t", "yes", "y"}:
+                return True
+            if normalized in {"0", "false", "f", "no", "n", ""}:
+                return False
+        return default
+
     items = row.get("items")
     allies = row.get("allies")
     return {
@@ -478,21 +530,44 @@ def _sanitize_match_payload(row: dict) -> dict:
         "riot_id": str(row.get("riot_id", "")),
         "summoner_name": str(row.get("summoner_name", "")),
         "champion": str(row.get("champion", "")),
-        "kills": int(row.get("kills", 0) or 0),
-        "deaths": int(row.get("deaths", 0) or 0),
-        "assists": int(row.get("assists", 0) or 0),
-        "win": bool(row.get("win", False)),
-        "duration_min": int(row.get("duration_min", 0) or 0),
+        "kills": _as_int(row.get("kills"), 0),
+        "deaths": _as_int(row.get("deaths"), 0),
+        "assists": _as_int(row.get("assists"), 0),
+        "win": _as_bool(row.get("win"), False),
+        "duration_min": _as_int(row.get("duration_min"), 0),
         "position": str(row.get("position", "")),
-        "cs_per_min": float(row.get("cs_per_min", 0) or 0),
-        "vision_score": int(row.get("vision_score", 0) or 0),
-        "kill_participation_pct": float(row.get("kill_participation_pct", 0) or 0),
-        "damage_share_pct": float(row.get("damage_share_pct", 0) or 0),
+        "cs_per_min": _as_float(row.get("cs_per_min"), 0.0),
+        "vision_score": _as_int(row.get("vision_score"), 0),
+        "kill_participation_pct": _as_float(row.get("kill_participation_pct"), 0.0),
+        "damage_share_pct": _as_float(row.get("damage_share_pct"), 0.0),
         "items": items if isinstance(items, list) else [],
         "allies": allies if isinstance(allies, list) else [],
         "puuid": str(row.get("puuid", "")),
-        "rank": str(row.get("rank", "")),
+        "rank": "" if row.get("rank") is None else str(row.get("rank", "")),
     }
+
+
+def _is_missing_column_error(error: Exception, column_name: str) -> bool:
+    message = str(error).lower()
+    col = column_name.lower()
+    return (
+        "column" in message
+        and col in message
+        and ("does not exist" in message or "not found" in message)
+    )
+
+
+async def _fetch_match_row(sb, match_id: str) -> dict | None:
+    """Busca linha publica da partida com fallback para schemas legados sem coluna rank."""
+    try:
+        res = await sb.table("ai_cache").select(MATCH_PUBLIC_COLUMNS).eq("match_id", match_id).limit(1).execute()
+        return (res.data or [None])[0]
+    except Exception as exc:
+        if not _is_missing_column_error(exc, "rank"):
+            raise
+        logger.warning("Schema legado detectado em /match (sem coluna rank). Aplicando fallback seguro.")
+        fallback = await sb.table("ai_cache").select(MATCH_PUBLIC_COLUMNS_FALLBACK).eq("match_id", match_id).limit(1).execute()
+        return (fallback.data or [None])[0]
 
 
 def _verify_app_token(request: Request) -> None:
@@ -1365,13 +1440,13 @@ async def get_match_by_id(match_id: str, request: Request):
     try:
         sb = await get_supabase()
         if sb is None:
-            raise HTTPException(status_code=500, detail="Supabase indisponível.")
+            raise HTTPException(status_code=503, detail="Serviço de dados indisponível.")
 
-        res = await sb.table("ai_cache").select(MATCH_PUBLIC_COLUMNS).eq("match_id", match_id).limit(1).execute()
-        if not res.data:
+        row = await _fetch_match_row(sb, match_id)
+        if not row:
             raise HTTPException(status_code=404, detail="Not Found")
 
-        return _sanitize_match_payload(res.data[0])
+        return _sanitize_match_payload(row)
     except HTTPException:
         raise
     except Exception as e:
