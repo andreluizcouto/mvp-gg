@@ -1,7 +1,8 @@
 # ProjectB/coach_app.py
 """
 Entry point do CoachApp local.
-Roda pystray na thread principal e o loop asyncio em thread separada.
+3-thread model: main=CustomTkinter, background=pystray, daemon=asyncio.
+EventBus bridges cross-thread communication via queue.Queue + after() polling.
 """
 import asyncio
 import logging
@@ -21,6 +22,8 @@ load_dotenv(os.path.join(_BASE_DIR, ".env"))
 
 import httpx
 
+import customtkinter as ctk
+from event_bus import EventBus, EventType, Event
 from live_coach import LiveCoachSession
 from tray_icon import TrayIcon
 
@@ -146,17 +149,19 @@ async def _poll_status(riot_id: str, tray: TrayIcon) -> None:
     logger.warning("Timeout aguardando analise - icone mantido em uploading.")
 
 
-async def coach_loop(tray: TrayIcon, stop_event: threading.Event) -> None:
+async def coach_loop(tray: TrayIcon, stop_event: threading.Event, event_bus: EventBus) -> None:
     """Loop principal: aguarda jogo -> grava -> envia -> poll."""
     while not stop_event.is_set():
         logger.info("Aguardando LoL iniciar...")
         tray.set_state("waiting")
+        event_bus.emit(Event(EventType.STATE_CHANGE, {"state": "waiting"}))
 
         session = LiveCoachSession()
         try:
             await session.start()
         except Exception as e:
             logger.error("Erro ao iniciar sessao: %s", e)
+            event_bus.emit(Event(EventType.ERROR, {"message": str(e)}))
             await asyncio.sleep(10.0)
             continue
 
@@ -165,6 +170,7 @@ async def coach_loop(tray: TrayIcon, stop_event: threading.Event) -> None:
             if active:
                 champion = getattr(session, "_player_champion", None) or ""
                 tray.set_state("recording", detail=champion)
+                event_bus.emit(Event(EventType.STATE_CHANGE, {"state": "recording", "champion": champion}))
             await asyncio.sleep(1.0)
 
         if stop_event.is_set():
@@ -173,6 +179,7 @@ async def coach_loop(tray: TrayIcon, stop_event: threading.Event) -> None:
 
         logger.info("Partida encerrada. Iniciando upload...")
         tray.set_state("uploading")
+        event_bus.emit(Event(EventType.STATE_CHANGE, {"state": "uploading"}))
 
         riot_id = await _upload(session, tray)
         if riot_id:
@@ -183,29 +190,52 @@ async def coach_loop(tray: TrayIcon, stop_event: threading.Event) -> None:
         await asyncio.sleep(5.0)
 
 
-def _run_async_loop(tray: TrayIcon, stop_event: threading.Event) -> None:
+def _run_async_loop(tray: TrayIcon, stop_event: threading.Event, event_bus: EventBus) -> None:
     """Roda o loop asyncio em thread separada."""
-    asyncio.run(coach_loop(tray, stop_event))
+    asyncio.run(coach_loop(tray, stop_event, event_bus))
 
 
 def main() -> None:
     stop_event = threading.Event()
+    event_bus = EventBus()
+
+    # 1. Create CTk window on main thread (MUST be main thread)
+    app = ctk.CTk()
+    app.title("MVPApp")
+    app.geometry("400x500")
+    app.withdraw()  # Start hidden — Phase 8 will add the visible shell
 
     def on_quit():
+        """Called from any thread to initiate clean shutdown."""
         logger.info("Encerrando CoachApp...")
         stop_event.set()
+        app.after(0, app.quit)  # Schedule mainloop exit on main thread
 
+    # 2. Create and start tray on background thread
     tray = TrayIcon(on_quit=on_quit)
+    tray.run_detached()  # Non-blocking — spawns Win32 message loop thread
 
-    t = threading.Thread(
+    # 3. Start asyncio loop on daemon thread
+    async_thread = threading.Thread(
         target=_run_async_loop,
-        args=(tray, stop_event),
+        args=(tray, stop_event, event_bus),
         daemon=True,
     )
-    t.start()
+    async_thread.start()
 
-    tray.run()
-    t.join(timeout=5.0)
+    # 4. Start EventBus polling (bridges queue → main thread)
+    event_bus.start_polling(app)
+
+    # 5. Enter main loop (blocks until app.quit())
+    app.mainloop()
+
+    # 6. Cleanup after mainloop exits
+    tray.stop()
+    async_thread.join(timeout=5.0)
+    try:
+        app.destroy()
+    except Exception:
+        pass  # Window may already be destroyed
     logger.info("CoachApp encerrado.")
 
 
