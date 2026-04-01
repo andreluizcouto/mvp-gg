@@ -93,9 +93,9 @@ function InlineScoreboard({ data, fallbackTag }) {
             {/* Gradiente divisor entre header e linhas do scoreboard */}
             <div className="w-full h-[1.5px] bg-gradient-to-r from-black-800/0 via-blue-400/15 to-black-800/0 scoreboard-divider" />
 
-            <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(280px,1.1fr)] items-center gap-2 px-3 py-1.5 bg-black-900/30">
+            <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(220px,0.85fr)] items-center gap-2 px-3 py-1.5 bg-black-900/30">
               <div className="text-[10px] text-black-400 uppercase tracking-wider">Jogador / Items</div>
-              <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-5 gap-1.5">
                 <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KDA</div>
                 <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KP</div>
                 <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">CS</div>
@@ -116,10 +116,10 @@ function InlineScoreboard({ data, fallbackTag }) {
               return (
                 <div
                   key={pi}
-                  className="grid grid-cols-[minmax(0,0.9fr)_minmax(280px,1.1fr)] items-start gap-2 px-3 py-2 hover:bg-white/[0.02] transition-colors"
+                  className="grid grid-cols-[minmax(0,1.15fr)_minmax(220px,0.85fr)] items-start gap-2 px-3 py-2 hover:bg-white/[0.02] transition-colors"
                   style={isTarget ? { background: "rgba(200,155,60,0.08)", borderLeft: "2px solid rgba(200,155,60,0.5)" } : {}}
                 >
-                  <div className="min-w-0 flex items-start gap-2">
+                  <div className="min-w-0 flex items-start gap-1.5">
                     <div className="w-7 h-7 rounded overflow-hidden border border-white/10 bg-black-600 flex-shrink-0">
                       <img
                         src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/${player.champion}.png`}
@@ -150,7 +150,7 @@ function InlineScoreboard({ data, fallbackTag }) {
                           </span>
                         )}
                       </div>
-                      <div className="mt-1 grid grid-rows-2 gap-0.5 w-fit">
+                      <div className="mt-1 grid grid-rows-2 gap-0.5 w-fit max-w-full">
                         <div className="flex items-center gap-1">
                           {[0, 1, 2, 6].map((slotIdx) => {
                             const itemId = player.items?.[slotIdx] ?? 0
@@ -189,7 +189,7 @@ function InlineScoreboard({ data, fallbackTag }) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-5 gap-2 items-center min-w-0">
+                  <div className="grid grid-cols-5 gap-1.5 items-center min-w-0">
                     <div className="text-center">
                       <span className="text-[11px] text-white/90">{player.kills}</span>
                       <span className="text-[10px] text-white/25"> / </span>

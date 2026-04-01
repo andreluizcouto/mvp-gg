@@ -178,6 +178,7 @@ _edge_client_hits: dict[str, list[float]] = {}  # scope:client -> [timestamps]
 _local_upload_client_hits: dict[str, list[float]] = {}  # local-upload:ip -> [timestamps]
 _redis_rate_limit_client = None
 _redis_fallback_warned = False
+_legacy_coaching_status_schema_warned = False
 
 MATCH_ID_RE = re.compile(r"^[A-Za-z0-9_:-]{3,80}$")
 SAFE_TEMP_FRAGMENT_RE = re.compile(r"[^A-Za-z0-9_-]+")
@@ -574,6 +575,7 @@ async def _fetch_match_row(sb, match_id: str) -> dict | None:
 
 async def _fetch_coaching_status_rows(sb, match_ids: list[str], riot_id: str = "") -> dict[str, dict]:
     """Busca status de coaching com fallback para schemas sem colunas novas."""
+    global _legacy_coaching_status_schema_warned
 
     def _base_query(columns: str):
         query = sb.table("ai_cache").select(columns).in_("match_id", match_ids)
@@ -590,10 +592,12 @@ async def _fetch_coaching_status_rows(sb, match_ids: list[str], riot_id: str = "
             or _is_missing_column_error(exc, "pipeline_snapshot")
         ):
             raise
-        logger.warning(
-            "Schema legado detectado em /coaching/status (sem external_status/pipeline_snapshot). "
-            "Aplicando fallback seguro."
-        )
+        if not _legacy_coaching_status_schema_warned:
+            logger.warning(
+                "Schema legado detectado em /coaching/status (sem external_status/pipeline_snapshot). "
+                "Aplicando fallback seguro."
+            )
+            _legacy_coaching_status_schema_warned = True
         fallback = await _base_query(COACHING_STATUS_COLUMNS_FALLBACK).execute()
         return {row["match_id"]: row for row in (fallback.data or []) if row.get("match_id")}
 
