@@ -196,7 +196,7 @@ function InlineScoreboard({ data, fallbackTag }) {
                         {[0, 1, 2, 6].map((slotIdx) => {
                           const itemId = player.items?.[slotIdx] ?? 0
                           return (
-                            <div key={`top-${slotIdx}`} className="w-[17px] h-[17px] rounded bg-black-600/50 overflow-hidden flex-shrink-0">
+                            <div key={`top-${slotIdx}`} className="w-[20px] h-[20px] rounded bg-black-600/50 overflow-hidden flex-shrink-0">
                               {itemId > 0 && (
                                 <img
                                   src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/item/${itemId}.png`}
@@ -213,7 +213,7 @@ function InlineScoreboard({ data, fallbackTag }) {
                         {[3, 4, 5].map((slotIdx) => {
                           const itemId = player.items?.[slotIdx] ?? 0
                           return (
-                            <div key={`bot-${slotIdx}`} className="w-[17px] h-[17px] rounded bg-black-600/50 overflow-hidden flex-shrink-0">
+                            <div key={`bot-${slotIdx}`} className="w-[20px] h-[20px] rounded bg-black-600/50 overflow-hidden flex-shrink-0">
                               {itemId > 0 && (
                                 <img
                                   src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/item/${itemId}.png`}
