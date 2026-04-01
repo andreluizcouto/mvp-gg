@@ -221,6 +221,8 @@ MATCH_PUBLIC_COLUMNS_FALLBACK = ",".join([
     "allies",
     "puuid",
 ])
+COACHING_STATUS_COLUMNS = "match_id,coaching_analysis,feedback_geral,external_status,pipeline_snapshot"
+COACHING_STATUS_COLUMNS_FALLBACK = "match_id,coaching_analysis,feedback_geral"
 SAFE_EXTERNAL_STATUSES = {"ready", "pending", "insufficient_data", "failed"}
 # Plan artifact marker: insufficient_data|Coach indisponivel
 UNAVAILABLE_COACHING_MESSAGE = "Coach indisponivel, baixe o app e jogue uma partida."
@@ -568,6 +570,32 @@ async def _fetch_match_row(sb, match_id: str) -> dict | None:
         logger.warning("Schema legado detectado em /match (sem coluna rank). Aplicando fallback seguro.")
         fallback = await sb.table("ai_cache").select(MATCH_PUBLIC_COLUMNS_FALLBACK).eq("match_id", match_id).limit(1).execute()
         return (fallback.data or [None])[0]
+
+
+async def _fetch_coaching_status_rows(sb, match_ids: list[str], riot_id: str = "") -> dict[str, dict]:
+    """Busca status de coaching com fallback para schemas sem colunas novas."""
+
+    def _base_query(columns: str):
+        query = sb.table("ai_cache").select(columns).in_("match_id", match_ids)
+        if riot_id:
+            query = query.eq("riot_id", riot_id)
+        return query
+
+    try:
+        response = await _base_query(COACHING_STATUS_COLUMNS).execute()
+        return {row["match_id"]: row for row in (response.data or []) if row.get("match_id")}
+    except Exception as exc:
+        if not (
+            _is_missing_column_error(exc, "external_status")
+            or _is_missing_column_error(exc, "pipeline_snapshot")
+        ):
+            raise
+        logger.warning(
+            "Schema legado detectado em /coaching/status (sem external_status/pipeline_snapshot). "
+            "Aplicando fallback seguro."
+        )
+        fallback = await _base_query(COACHING_STATUS_COLUMNS_FALLBACK).execute()
+        return {row["match_id"]: row for row in (fallback.data or []) if row.get("match_id")}
 
 
 def _verify_app_token(request: Request) -> None:
@@ -1295,13 +1323,7 @@ async def coaching_status(ids: str, request: Request, riot_id: str = ""):
         try:
             sb = await get_supabase()
             if sb is not None:
-                query = sb.table("ai_cache").select(
-                    "match_id,coaching_analysis,feedback_geral,external_status,pipeline_snapshot"
-                ).in_("match_id", match_ids)
-                if riot_id:
-                    query = query.eq("riot_id", riot_id)
-                resp = await query.execute()
-                rows_by_match = {row["match_id"]: row for row in (resp.data or []) if row.get("match_id")}
+                rows_by_match = await _fetch_coaching_status_rows(sb, match_ids, riot_id)
         except Exception as e:
             logger.error(f"Erro ao buscar status batch de coaching: {e}")
 

@@ -15,6 +15,8 @@ _client = None
 _pending_local_evidence_store: dict[tuple[str, str], dict[str, Any]] = {}
 _pipeline_snapshot_store: dict[tuple[str, str], dict[str, Any]] = {}
 _SAFE_EXTERNAL_STATUSES = {"ready", "pending", "insufficient_data", "failed"}
+PIPELINE_SNAPSHOT_COLUMNS = "pipeline_snapshot,external_status,coaching_analysis,feedback_geral"
+PIPELINE_SNAPSHOT_COLUMNS_FALLBACK = "coaching_analysis,feedback_geral"
 
 
 def _normalize_pending_key(match_id: str, riot_id: str) -> tuple[str, str]:
@@ -42,6 +44,16 @@ def _is_expired(expires_at: str) -> bool:
         return datetime.fromisoformat(expires_at) <= _utc_now()
     except ValueError:
         return True
+
+
+def _is_missing_column_error(error: Exception, column_name: str) -> bool:
+    message = str(error).lower()
+    col = column_name.lower()
+    return (
+        "column" in message
+        and col in message
+        and ("does not exist" in message or "not found" in message)
+    )
 
 
 async def get_supabase():
@@ -182,12 +194,25 @@ async def get_pipeline_snapshot(match_id: str, riot_id: str) -> Optional[dict[st
         sb = await get_supabase()
         if sb is None:
             return None
-        query = sb.table("ai_cache").select(
-            "pipeline_snapshot,external_status,coaching_analysis,feedback_geral"
-        ).eq("match_id", match_id)
+        query = sb.table("ai_cache").select(PIPELINE_SNAPSHOT_COLUMNS).eq("match_id", match_id)
         if riot_id:
             query = query.eq("riot_id", riot_id)
-        resp = await query.execute()
+        try:
+            resp = await query.execute()
+        except Exception as exc:
+            if not (
+                _is_missing_column_error(exc, "external_status")
+                or _is_missing_column_error(exc, "pipeline_snapshot")
+            ):
+                raise
+            logger.warning(
+                "Schema legado detectado em get_pipeline_snapshot (sem external_status/pipeline_snapshot). "
+                "Aplicando fallback seguro."
+            )
+            fallback_query = sb.table("ai_cache").select(PIPELINE_SNAPSHOT_COLUMNS_FALLBACK).eq("match_id", match_id)
+            if riot_id:
+                fallback_query = fallback_query.eq("riot_id", riot_id)
+            resp = await fallback_query.execute()
         if not resp.data:
             return None
         row = resp.data[0]

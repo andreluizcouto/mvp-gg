@@ -279,18 +279,20 @@ function MatchRow({ match, index, onSelect, hasCoaching, puuid, fallbackTag }) {
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-0.5">
-              <span className={`text-bxs font-bold uppercase ${win ? "text-accent-green" : "text-accent-red"}`}>
+            <div className="flex flex-col gap-0.5">
+              <span className={`text-bxs font-bold uppercase leading-tight ${win ? "text-accent-green" : "text-accent-red"}`}>
                 {win ? "Vitoria" : "Derrota"}
               </span>
+              <div className="flex items-center gap-2 flex-wrap">
               <span className="text-bs font-semibold text-black-0 truncate">{match.champion}</span>
               {match.position && (
                 <span className="text-[9px] text-black-300 border border-black-500 rounded px-1 py-0.5 bg-black-600">
                   {getPositionLabel(match.position, "abbrev")}
                 </span>
               )}
+              </div>
               {hasCoaching && (
-                <span className="text-[9px] font-bold text-gold-400 bg-gold-400/15 px-1.5 py-0.5 rounded">
+                <span className="text-[10px] font-bold text-gold-400 bg-gold-400/15 border border-gold-400/25 px-1.5 py-0.5 rounded w-fit tracking-wide">
                   IA
                 </span>
               )}
@@ -344,10 +346,10 @@ function MatchRow({ match, index, onSelect, hasCoaching, puuid, fallbackTag }) {
       </div>
 
       <div
-        className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${expanded ? "max-h-[800px]" : "max-h-0"}`}
+        className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${expanded ? "max-h-[1000px]" : "max-h-0"}`}
       >
-        <div className="px-3 pb-3">
-          <div className="flex gap-6 mb-2">
+        <div className="px-4 pb-4 pt-1">
+          <div className="flex gap-6 mb-3">
             {TABS.map(tab => (
               <button
                 key={tab.key}
@@ -363,7 +365,7 @@ function MatchRow({ match, index, onSelect, hasCoaching, puuid, fallbackTag }) {
             ))}
           </div>
           {/* Gradiente divisor sutil entre abas e conteúdo */}
-          <div className="w-full h-[1.5px] bg-gradient-to-r from-black-800/0 via-blue-400/15 to-black-800/0 scoreboard-divider mb-4" />
+          <div className="w-full h-[1.5px] bg-gradient-to-r from-black-800/0 via-blue-400/15 to-black-800/0 scoreboard-divider mb-5" />
 
           {activeTab === "geral" && (
             <>
