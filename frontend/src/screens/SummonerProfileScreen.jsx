@@ -85,7 +85,7 @@ function InlineScoreboard({ data, fallbackTag }) {
 
               <div className="w-full h-[1.5px] bg-gradient-to-r from-black-800/0 via-blue-400/15 to-black-800/0 scoreboard-divider" />
 
-              <div className="grid grid-cols-[minmax(170px,1fr)_88px_56px_56px_minmax(120px,1fr)_56px_120px] items-center gap-1.5 px-3 py-1.5 bg-black-900/30">
+              <div className="grid grid-cols-[minmax(220px,1.5fr)_86px_54px_54px_minmax(120px,1fr)_52px_116px] items-center gap-1 px-3 py-1.5 bg-black-900/30">
                 <div className="text-[10px] text-black-400 uppercase tracking-wider">Jogador</div>
                 <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KDA</div>
                 <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KP</div>
@@ -111,7 +111,7 @@ function InlineScoreboard({ data, fallbackTag }) {
                 return (
                   <div
                     key={pi}
-                    className="grid grid-cols-[minmax(170px,1fr)_88px_56px_56px_minmax(120px,1fr)_56px_120px] items-center gap-1.5 px-3 py-2 hover:bg-white/[0.02] transition-colors"
+                    className="grid grid-cols-[minmax(220px,1.5fr)_86px_54px_54px_minmax(120px,1fr)_52px_116px] items-center gap-1 px-3 py-2 hover:bg-white/[0.02] transition-colors"
                     style={isTarget ? { background: "rgba(200,155,60,0.08)", borderLeft: "2px solid rgba(200,155,60,0.5)" } : {}}
                   >
                     <div className="min-w-0 flex items-start gap-1.5">
