@@ -233,6 +233,148 @@ def test_match_endpoint_returns_only_public_fields(monkeypatch):
     }
 
 
+def test_match_endpoint_handles_missing_rank_column_without_500(monkeypatch):
+    _disable_redis(monkeypatch)
+
+    class FakeMissingRankQuery:
+        def select(self, columns):
+            self._columns = columns
+            return self
+
+        def eq(self, _column, _value):
+            return self
+
+        def limit(self, _amount):
+            return self
+
+        async def execute(self):
+            if "rank" in self._columns:
+                raise Exception('column "rank" does not exist')
+            return SimpleNamespace(
+                data=[
+                    {
+                        "match_id": "BR1_123",
+                        "riot_id": "tester#BR1",
+                        "summoner_name": "tester#BR1",
+                        "champion": "Ahri",
+                        "kills": 10,
+                        "deaths": 3,
+                        "assists": 8,
+                        "win": True,
+                        "duration_min": 30,
+                        "position": "MIDDLE",
+                        "cs_per_min": 7.2,
+                        "vision_score": 20,
+                        "kill_participation_pct": 60.0,
+                        "damage_share_pct": 25.0,
+                        "items": [6655, 3020],
+                        "allies": [{"champion": "JarvanIV", "position": "JUNGLE"}],
+                        "puuid": "puuid-1",
+                    }
+                ]
+            )
+
+    class FakeSupabase:
+        def table(self, name):
+            assert name == "ai_cache"
+            return FakeMissingRankQuery()
+
+    async def fake_get_supabase():
+        return FakeSupabase()
+
+    monkeypatch.setattr(main, "get_supabase", fake_get_supabase)
+    monkeypatch.setattr(main, "PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS", 60)
+    monkeypatch.setattr(main, "PUBLIC_READ_RATE_LIMIT_WINDOW_SECONDS", 60)
+    monkeypatch.setattr(main, "EDGE_CLIENT_RATE_LIMIT_MAX_REQUESTS", 999)
+    monkeypatch.setattr(main, "EDGE_CLIENT_RATE_LIMIT_WINDOW_SECONDS", 60)
+    main._public_read_hits.clear()
+    main._edge_client_hits.clear()
+
+    client = TestClient(main.app)
+    resp = client.get("/match/BR1_123")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["match_id"] == "BR1_123"
+    assert payload["rank"] == ""
+
+
+def test_match_endpoint_sanitizes_invalid_numeric_types(monkeypatch):
+    _disable_redis(monkeypatch)
+
+    class FakeQuery:
+        def __init__(self, row):
+            self._row = row
+
+        def select(self, _columns):
+            return self
+
+        def eq(self, _column, _value):
+            return self
+
+        def limit(self, _amount):
+            return self
+
+        async def execute(self):
+            return SimpleNamespace(data=[self._row])
+
+    class FakeSupabase:
+        def __init__(self, row):
+            self._row = row
+
+        def table(self, name):
+            assert name == "ai_cache"
+            return FakeQuery(self._row)
+
+    async def fake_get_supabase():
+        return FakeSupabase(
+            {
+                "match_id": "BR1_777",
+                "riot_id": "tester#BR1",
+                "summoner_name": "tester#BR1",
+                "champion": "Ahri",
+                "kills": "N/A",
+                "deaths": None,
+                "assists": "4.0",
+                "win": "true",
+                "duration_min": "31.2",
+                "position": "MIDDLE",
+                "cs_per_min": "abc",
+                "vision_score": "12",
+                "kill_participation_pct": "47.5",
+                "damage_share_pct": "",
+                "items": "not-a-list",
+                "allies": None,
+                "puuid": "puuid-1",
+                "rank": None,
+            }
+        )
+
+    monkeypatch.setattr(main, "get_supabase", fake_get_supabase)
+    monkeypatch.setattr(main, "PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS", 60)
+    monkeypatch.setattr(main, "PUBLIC_READ_RATE_LIMIT_WINDOW_SECONDS", 60)
+    monkeypatch.setattr(main, "EDGE_CLIENT_RATE_LIMIT_MAX_REQUESTS", 999)
+    monkeypatch.setattr(main, "EDGE_CLIENT_RATE_LIMIT_WINDOW_SECONDS", 60)
+    main._public_read_hits.clear()
+    main._edge_client_hits.clear()
+
+    client = TestClient(main.app)
+    resp = client.get("/match/BR1_777")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["kills"] == 0
+    assert payload["deaths"] == 0
+    assert payload["assists"] == 4
+    assert payload["duration_min"] == 31
+    assert payload["cs_per_min"] == 0.0
+    assert payload["vision_score"] == 12
+    assert payload["kill_participation_pct"] == 47.5
+    assert payload["damage_share_pct"] == 0.0
+    assert payload["win"] is True
+    assert payload["items"] == []
+    assert payload["allies"] == []
+    assert payload["rank"] == ""
+
+
 def test_local_upload_rejects_unsafe_match_id(monkeypatch):
     monkeypatch.setattr(main, "LOCAL_APP_TOKEN", "local-token")
     monkeypatch.setattr(main, "APP_TOKEN", "internal-token")
