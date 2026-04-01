@@ -56,8 +56,8 @@ function InlineScoreboard({ data, fallbackTag }) {
   if (!data?.teams) return null
 
   return (
-    <div className="rounded-lg border border-black-800/40">
-      <div>
+    <div className="rounded-lg border border-black-800/40 overflow-x-auto">
+      <div className="min-w-[760px]">
       {data.teams.map((team, ti) => {
         const isBlue = team.side === "blue"
         const isWin = team.win
@@ -346,7 +346,7 @@ function MatchRow({ match, index, onSelect, hasCoaching, puuid, fallbackTag }) {
       </div>
 
       <div
-        className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${expanded ? "max-h-[1000px]" : "max-h-0"}`}
+        className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${expanded ? "max-h-[1400px]" : "max-h-0"}`}
       >
         <div className="px-4 pb-4 pt-1">
           <div className="flex gap-6 mb-3">
