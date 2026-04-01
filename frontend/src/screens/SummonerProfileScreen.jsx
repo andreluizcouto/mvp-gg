@@ -56,8 +56,8 @@ function InlineScoreboard({ data, fallbackTag }) {
   if (!data?.teams) return null
 
   return (
-    <div className="rounded-lg border border-black-800/40 overflow-x-auto">
-      <div className="min-w-[760px]">
+    <div className="rounded-lg border border-black-800/40 w-full max-w-[980px] mx-auto">
+      <div className="w-full">
       {data.teams.map((team, ti) => {
         const isBlue = team.side === "blue"
         const isWin = team.win
@@ -93,7 +93,7 @@ function InlineScoreboard({ data, fallbackTag }) {
             {/* Gradiente divisor entre header e linhas do scoreboard */}
             <div className="w-full h-[1.5px] bg-gradient-to-r from-black-800/0 via-blue-400/15 to-black-800/0 scoreboard-divider" />
 
-            <div className="grid grid-cols-[32px_112px_72px_40px_52px_minmax(110px,1fr)_34px_146px] items-center gap-2 px-3 py-1.5 bg-black-900/30">
+            <div className="grid grid-cols-[32px_minmax(120px,1.4fr)_minmax(82px,1fr)_minmax(52px,0.6fr)_minmax(52px,0.6fr)_minmax(150px,1.2fr)_minmax(40px,0.5fr)_minmax(132px,1fr)] items-center gap-2 px-3 py-1.5 bg-black-900/30">
               <div />
               <div className="text-[10px] text-black-400 uppercase tracking-wider">Jogador</div>
               <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KDA</div>
@@ -101,7 +101,7 @@ function InlineScoreboard({ data, fallbackTag }) {
               <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">CS</div>
               <div className="text-[10px] text-black-400 uppercase tracking-wider">Dano</div>
               <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">Vis</div>
-              <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">Items</div>
+              <div className="text-left text-[10px] text-black-400 uppercase tracking-wider">Items</div>
             </div>
 
             {/* Gradiente divisor sutil após header das colunas */}
@@ -116,7 +116,7 @@ function InlineScoreboard({ data, fallbackTag }) {
               return (
                 <div
                   key={pi}
-                  className="grid grid-cols-[32px_112px_72px_40px_52px_minmax(110px,1fr)_34px_146px] items-center gap-2 px-3 py-2.5 hover:bg-white/[0.02] transition-colors"
+                  className="grid grid-cols-[32px_minmax(120px,1.4fr)_minmax(82px,1fr)_minmax(52px,0.6fr)_minmax(52px,0.6fr)_minmax(150px,1.2fr)_minmax(40px,0.5fr)_minmax(132px,1fr)] items-center gap-2 px-3 py-2.5 hover:bg-white/[0.02] transition-colors"
                   style={isTarget ? { background: "rgba(200,155,60,0.08)", borderLeft: "2px solid rgba(200,155,60,0.5)" } : {}}
                 >
                   <div className="w-8 h-8 rounded overflow-hidden border border-white/10 bg-black-600">
@@ -199,7 +199,7 @@ function InlineScoreboard({ data, fallbackTag }) {
                        : <span className="text-[10px] text-black-500">—</span>}
                   </div>
 
-                   <div className="flex justify-center gap-1 min-w-0">
+                   <div className="flex justify-start gap-1 min-w-0">
                     {(player.items ?? []).map((itemId, ii) => (
                        <div key={ii} className="w-5 h-5 rounded bg-black-600/50 overflow-hidden">
                         {itemId > 0 && (
@@ -260,12 +260,12 @@ function MatchRow({ match, index, onSelect, hasCoaching, puuid, fallbackTag }) {
         win ? "bg-accent-green/[0.06] border-accent-green/50" : "bg-accent-red/[0.06] border-accent-red/50"
       }`}
     >
-      <div className="flex items-center gap-3 px-3 py-2.5 group">
+      <div className="flex items-center gap-3 px-3 py-3 group">
         <div
           onClick={onSelect}
           className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer transition-all duration-200 hover:brightness-110 active:scale-[0.995]"
         >
-          <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 flex-shrink-0 bg-black-600">
+          <div className="w-11 h-11 rounded-lg overflow-hidden border border-white/10 flex-shrink-0 bg-black-600">
             {!imgFailed ? (
               <img
                 src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/${match.champion}.png`}
@@ -346,10 +346,10 @@ function MatchRow({ match, index, onSelect, hasCoaching, puuid, fallbackTag }) {
       </div>
 
       <div
-        className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${expanded ? "max-h-[1400px]" : "max-h-0"}`}
+        className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${expanded ? "max-h-[1700px]" : "max-h-0"}`}
       >
-        <div className="px-4 pb-4 pt-1">
-          <div className="flex gap-6 mb-3">
+        <div className="px-3 pb-5 pt-1">
+          <div className="flex justify-start gap-6 mb-3">
             {TABS.map(tab => (
               <button
                 key={tab.key}
@@ -377,7 +377,9 @@ function MatchRow({ match, index, onSelect, hasCoaching, puuid, fallbackTag }) {
                 </div>
               )}
               {!scoreboardLoading && scoreboardData && (
-                <InlineScoreboard data={scoreboardData} fallbackTag={fallbackTag} />
+                <div className="flex justify-center">
+                  <InlineScoreboard data={scoreboardData} fallbackTag={fallbackTag} />
+                </div>
               )}
               {!scoreboardLoading && !scoreboardData && (
                 <p className="text-bxs text-black-400 text-center py-4">Não foi possível carregar o scoreboard.</p>
