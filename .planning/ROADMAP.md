@@ -206,7 +206,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 7. Threading Foundation + EventBus | 2/2 | Complete | 2026-04-01 |
+| 7. Threading Foundation + EventBus | 2/2 | Complete   | 2026-04-01 |
 | 8. GUI Shell + Tray Integration | 0/? | Not started | - |
 | 9. Content Panels — Status, How-It-Works, Settings | 0/? | Not started | - |
 | 10. Activity Log + Event Bridge | 0/? | Not started | - |

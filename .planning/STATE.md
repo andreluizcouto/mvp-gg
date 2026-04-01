@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.1
-milestone_name: CoachApp Desktop GUI
-status: in_progress
-stopped_at: null
-last_updated: "2026-04-01T21:30:00.000Z"
-last_activity: 2026-04-01 -- Phase 7 complete (Threading Foundation + EventBus)
+milestone_name: — MVPApp Desktop GUI
+status: completed
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-04-01T22:43:36.445Z"
+last_activity: 2026-04-01 — Plan 07-01 executed (EventBus + thread-safe config)
 progress:
-  total_phases: 5
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 20
+  total_phases: 6
+  completed_phases: 4
+  total_plans: 11
+  completed_plans: 11
+  percent: 10
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-01)
 
 ## Current Position
 
-Phase: Phase 8 — GUI Shell + Tray Integration (next up)
-Plan: —
-Status: Phase 7 complete, ready for Phase 8 planning
-Last activity: 2026-04-01 — Phase 7 complete (Threading Foundation + EventBus)
+Phase: Phase 7 — Threading Foundation + EventBus
+Plan: 1 of 2
+Status: Plan 07-01 complete, ready for 07-02
+Last activity: 2026-04-01 — Plan 07-01 executed (EventBus + thread-safe config)
 
-Progress: [██........] 20%
+Progress: [█.........] 10%
 
 ## Accumulated Context
 
@@ -45,6 +45,12 @@ Recent decisions affecting current work:
 - [v1.1]: Three-thread model — CTk on main, pystray on background, asyncio on daemon
 - [v1.1]: EventBus (queue.Queue + after() polling) bridges all cross-thread communication
 - [v1.1]: Auto-hide GUI window during recording state to prevent minimap capture interference
+- [Phase 07]: app.withdraw() on startup — GUI starts hidden, Phase 8 adds visible shell
+- [Phase 07]: Module-scoped Tk fixture in tests — avoids Tcl state corruption on Windows
+- [Phase 07]: Dual notification path: EventBus + tray.set_state() during 2→3 thread transition
+- [Phase 07-01]: EventBus uses queue.Queue (stdlib) — no external dependency needed
+- [Phase 07-01]: POLL_INTERVAL_MS=100ms for sub-200ms GUI latency
+- [Phase 07-01]: RLock (not Lock) for config enables re-entrant acquisition in update_config
 
 ### Pending Todos
 
@@ -65,6 +71,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2025-07-17T00:00:00.000Z
-Stopped at: Roadmap complete — ready for `/gsd-plan-phase 7`
-Resume file: —
+Last session: 2026-04-01T22:43:36.442Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: None

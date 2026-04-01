@@ -1,42 +1,115 @@
-# Plan 07-02 Summary
+---
+phase: 07-threading-foundation-eventbus
+plan: 02
+subsystem: threading
+tags: [customtkinter, pystray, asyncio, threading, eventbus, tkinter]
 
-**Phase:** 07-threading-foundation-eventbus
-**Plan:** 02 — 3-thread model restructure + integration tests
-**Status:** Complete
-**Date:** 2026-04-01
+requires:
+  - phase: 07-threading-foundation-eventbus (plan 01)
+    provides: "EventBus module (event_bus.py), thread-safe app_config with update_config()"
+provides:
+  - "TrayIcon with run_detached() non-blocking API"
+  - "3-thread coach_app.py bootstrap: CTk main, pystray background, asyncio daemon"
+  - "EventBus wiring in coach_loop with STATE_CHANGE and ERROR emissions"
+  - "Shutdown coordination via threading.Event + after(0, app.quit)"
+  - "Integration tests proving EventBus + tk mainloop + cross-thread delivery"
+affects: [phase-08-gui-shell, phase-09-state-machine, phase-10-activity-log, phase-11-minimap-settings]
 
-## What Was Built
+tech-stack:
+  added: [customtkinter]
+  patterns: [3-thread-model, run_detached-tray, after-0-quit-shutdown, module-scoped-tk-fixture]
 
-### TrayIcon Refactored (`backend/tray_icon.py`)
-- Replaced blocking `run()` with `run_detached()` (calls `pystray.Icon.run_detached()`)
-- `_toggle_left`/`_toggle_large` now use atomic `update_config()` instead of race-prone get+save pattern
-- Removed `save_config` import, added `update_config` import
+key-files:
+  created:
+    - backend/tests/test_threading.py
+  modified:
+    - backend/tray_icon.py
+    - backend/coach_app.py
 
-### 3-Thread Model (`backend/coach_app.py`)
-- **Main thread**: CustomTkinter `CTk()` with `app.mainloop()`, `app.withdraw()` (hidden — Phase 8 adds visible shell)
-- **Background thread**: pystray via `tray.run_detached()` (non-blocking)
-- **Daemon thread**: asyncio `coach_loop()` with EventBus emission for state changes
-- **Shutdown coordination**: `stop_event.set()` → `app.after(0, app.quit)` → `tray.stop()` → `async_thread.join(5s)` → `app.destroy()`
-- EventBus emissions added alongside existing `tray.set_state()` calls (STATE_CHANGE, ERROR events)
+key-decisions:
+  - "app.withdraw() on startup — GUI starts hidden, Phase 8 adds visible shell"
+  - "Module-scoped tk.Tk() fixture in tests — avoids Tcl state corruption on Windows from repeated create/destroy"
+  - "EventBus emissions alongside tray.set_state() — dual notification path (tray + GUI) during transition"
 
-### Integration Tests (`backend/tests/test_threading.py`)
-- `test_eventbus_polling_with_tk_mainloop` — EventBus delivers events via after() on tk mainloop
-- `test_cross_thread_emit_to_tk_mainloop` — cross-thread emit received on main thread
-- `test_eventbus_delivery_latency` — delivery within 200ms (APP-02 requirement verified)
-- `test_shutdown_via_stop_event` — shutdown exits mainloop cleanly in < 2s
-- `test_multiple_events_from_async_thread` — 3 events delivered in order from background thread
-- Module-scoped `tk.Tk()` fixture to avoid Tcl state corruption on Windows
+patterns-established:
+  - "3-thread bootstrap: CTk main → tray.run_detached() → asyncio daemon thread"
+  - "Shutdown: stop_event.set() + app.after(0, app.quit) from any thread"
+  - "EventBus emission from asyncio: event_bus.emit(Event(EventType.STATE_CHANGE, {...}))"
 
-## Tests
-- 5 integration tests all passing
-- Full suite: 88/88 tests passing, 0 regressions
+requirements-completed: [APP-01, APP-02]
 
-## Commits
-- `3474d70` feat(07-02): modify TrayIcon for run_detached() and atomic config updates
-- `1c0faa7` feat(07-02): restructure coach_app.py for 3-thread model with EventBus
-- `0e6f484` test(07-02): add integration tests for 3-thread model
-- `670426e` fix(07-02): use module-scoped tk_root fixture for Windows Tcl compatibility
+duration: 8min
+completed: 2026-04-01
+---
 
-## Requirements Addressed
-- **APP-01**: 3-thread coexistence (CTk main, pystray background, asyncio daemon) without deadlocks
-- **APP-02**: EventBus wired into coach_loop — cross-thread events delivered via after() polling within 200ms
+# Phase 7 Plan 02: 3-Thread Model Restructure Summary
+
+**CTk main thread + pystray background + asyncio daemon with EventBus cross-thread delivery under 200ms and coordinated shutdown**
+
+## Performance
+
+- **Duration:** 8 min
+- **Started:** 2026-04-01T22:19:33Z
+- **Completed:** 2026-04-01T22:27:00Z
+- **Tasks:** 3
+- **Files modified:** 3
+
+## Accomplishments
+- TrayIcon refactored from blocking `run()` to non-blocking `run_detached()` with atomic config updates
+- coach_app.py restructured from 2-thread (pystray main + asyncio) to 3-thread (CTk main + pystray background + asyncio daemon) with EventBus integration
+- 5 integration tests proving EventBus polling, cross-thread delivery (<200ms), and clean shutdown coordination
+- Full test suite: 88/88 passing, zero regressions
+
+## Task Commits
+
+Each task was committed atomically:
+
+1. **Task 1: Modify TrayIcon for run_detached() and atomic config updates** - `3474d70` (feat)
+2. **Task 2: Restructure coach_app.py for 3-thread model with EventBus and shutdown** - `1c0faa7` (feat)
+3. **Task 3: Create integration tests for 3-thread model** - `d3c3a09` (test)
+
+## Files Created/Modified
+- `backend/tray_icon.py` - TrayIcon with run_detached() replacing blocking run(), _toggle_* using atomic update_config()
+- `backend/coach_app.py` - 3-thread bootstrap: CTk mainloop on main, pystray run_detached on background, asyncio.run on daemon. EventBus wired into coach_loop
+- `backend/tests/test_threading.py` - 5 integration tests for EventBus+tk, cross-thread delivery, latency, shutdown, multi-event ordering
+
+## Decisions Made
+- **app.withdraw() on startup:** GUI window starts hidden — same user experience as before (tray-only). Phase 8 will deiconify and add the visible shell.
+- **Module-scoped Tk fixture:** On Windows, repeated `tk.Tk()`/`destroy()` cycles corrupt the Tcl interpreter. Using a single shared root per test module avoids this.
+- **Dual notification path:** EventBus emissions added alongside existing tray.set_state() calls. Both tray icon and future GUI will receive state updates.
+
+## Deviations from Plan
+
+### Auto-fixed Issues
+
+**1. [Rule 1 - Bug] Fixed Tcl interpreter corruption in test suite**
+- **Found during:** Task 3 (Integration tests)
+- **Issue:** Creating and destroying multiple `tk.Tk()` instances across tests caused `TclError: invalid command name "tcl_findLibrary"` on Windows — 5th Tk create/destroy cycle in full suite corrupted Tcl state
+- **Fix:** Changed from per-test `tk.Tk()`/`destroy()` to module-scoped fixture with a single shared Tk root reused across all 5 tests
+- **Files modified:** `backend/tests/test_threading.py`
+- **Verification:** Full suite 88/88 passing after fix
+- **Committed in:** `d3c3a09` (amended Task 3 commit)
+
+---
+
+**Total deviations:** 1 auto-fixed (1 bug)
+**Impact on plan:** Test infrastructure fix was necessary for Windows compatibility. Same tests, same assertions, more robust Tk lifecycle. No scope creep.
+
+## Issues Encountered
+None beyond the Tk fixture issue documented above.
+
+## User Setup Required
+None - no external service configuration required.
+
+## Known Stubs
+None - all wiring is functional. `app.withdraw()` is intentional (Phase 8 adds visible window).
+
+## Next Phase Readiness
+- 3-thread model validated and operational — ready for Phase 8 GUI shell
+- EventBus infrastructure proven for cross-thread communication — Phase 9 state machine can subscribe
+- TrayIcon can be extended with new menu items in Phase 10-11
+- Shutdown coordination pattern established for all future components
+
+---
+*Phase: 07-threading-foundation-eventbus*
+*Completed: 2026-04-01*

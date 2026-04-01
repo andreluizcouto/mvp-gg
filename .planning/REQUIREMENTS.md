@@ -40,9 +40,9 @@
 
 ### Desktop App Infrastructure
 
-- [ ] **APP-01**: App runs CustomTkinter GUI on main thread with pystray on detached thread and asyncio on daemon thread without deadlocks or crashes
-- [ ] **APP-02**: Cross-thread events flow from asyncio loop to GUI via EventBus (queue.Queue + after() polling)
-- [ ] **APP-03**: Config read/write is thread-safe with locking to prevent race conditions between GUI, tray, and capture threads
+- [x] **APP-01**: App runs CustomTkinter GUI on main thread with pystray on detached thread and asyncio on daemon thread without deadlocks or crashes
+- [x] **APP-02**: Cross-thread events flow from asyncio loop to GUI via EventBus (queue.Queue + after() polling)
+- [x] **APP-03**: Config read/write is thread-safe with locking to prevent race conditions between GUI, tray, and capture threads
 - [ ] **APP-04**: PyInstaller build bundles CustomTkinter assets and produces a working .exe
 
 ### Desktop App Window
@@ -110,9 +110,9 @@
 | DATA-03 | Phase 4 | Complete |
 | QUAL-01 | Phase 5 | Complete |
 | UX-03 | Phase 6 | Pending |
-| APP-01 | Phase 7 | Pending |
-| APP-02 | Phase 7 | Pending |
-| APP-03 | Phase 7 | Pending |
+| APP-01 | Phase 7 | Complete |
+| APP-02 | Phase 7 | Complete |
+| APP-03 | Phase 7 | Complete |
 | WIN-01 | Phase 8 | Pending |
 | WIN-02 | Phase 8 | Pending |
 | WIN-03 | Phase 8 | Pending |
