@@ -17,6 +17,14 @@ This roadmap improves an already working brownfield prototype into a trustworthy
 - [x] **Phase 5: Regression Safety Net** - add tests and verification around the highest-risk paths (tests written, awaiting execution verification)
 - [ ] **Phase 6: Community-Ready Hardening** - finalize launch-readiness, resilience, and trust signals
 
+### v1.1 — MVPApp Desktop GUI
+
+- [ ] **Phase 7: Threading Foundation + EventBus** - restructure main() for three-thread model with thread-safe communication and config locking
+- [ ] **Phase 8: GUI Shell + Tray Integration** - dark-themed window that coexists with system tray (hide-on-close, double-click restore)
+- [ ] **Phase 9: Content Panels — Status, How-It-Works, Settings** - informational and configuration panels inside the window shell
+- [ ] **Phase 10: Activity Log + Event Bridge** - real-time color-coded event feed bridged from asyncio to GUI
+- [ ] **Phase 11: Build Configuration + Validation** - PyInstaller bundles CustomTkinter into a distributable .exe
+
 ## Phase Details
 
 ### Phase 1: Trust Boundaries and Security Foundation
@@ -110,7 +118,76 @@ Plans:
 - [ ] 06-01: Finalize trust signals, failure-state presentation, and public-facing polish
 - [ ] 06-02: Verify launch-readiness against the product promise and current roadmap
 
+---
+
+## v1.1 — MVPApp Desktop GUI
+
+### Overview
+
+This section extends the roadmap for milestone v1.1. The existing MVPApp is a headless tray-only app that captures minimap screenshots and uploads them for AI coaching analysis. v1.1 adds a visual interface so users can understand what the app does, see it working in real time, and configure capture settings — without breaking the proven async + tray architecture.
+
+The core challenge is a threading integration: CustomTkinter needs the main thread, pystray currently blocks the main thread, and asyncio runs on a daemon thread. The phase order reflects risk: threading model first (everything depends on it), then the window shell (validates the model), then content panels, then the showcase feature (activity log), then the build (can only validate when everything works).
+
+### Phase 7: Threading Foundation + EventBus
+**Goal**: MVPApp runs three concurrent threads (GUI, tray, asyncio) without deadlocks, with a thread-safe communication channel and protected config access
+**Depends on**: Nothing (v1.1 foundation — existing coach_app.py is the starting point)
+**Requirements**: [APP-01, APP-02, APP-03]
+**Success Criteria** (what must be TRUE):
+  1. App launches with CustomTkinter mainloop on main thread, pystray on background thread, and asyncio on daemon thread — all three coexist without freezing or crashing
+  2. EventBus messages put from any thread are received by the main thread via after() polling within 200ms
+  3. Config changes from any thread are protected by locking — concurrent read-modify-write never produces corrupted or lost writes
+  4. App shuts down cleanly from tray "Quit" — all three threads exit without orphan processes or frozen windows
+**Plans**: TBD
+
+### Phase 8: GUI Shell + Tray Integration
+**Goal**: User sees a functional app window that correctly coexists with the system tray — hiding, showing, and persisting across close actions
+**Depends on**: Phase 7
+**Requirements**: [WIN-01, WIN-02, WIN-03]
+**Success Criteria** (what must be TRUE):
+  1. User sees a dark-themed window with app branding when launching MVPApp
+  2. User can close the window via the X button and the app continues running in the system tray
+  3. User can double-click the tray icon to restore the window to the foreground
+  4. Tray context menu includes an "Open MVPApp" option that shows the window
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 9: Content Panels — Status, How-It-Works, Settings
+**Goal**: User can understand what the app does, see its current state, and configure capture settings — all from within the window
+**Depends on**: Phase 8
+**Requirements**: [CNT-01, CNT-02, CNT-03, CNT-04, WIN-04]
+**Success Criteria** (what must be TRUE):
+  1. User sees a "How it works" explanation that describes the capture-analyze-coach flow in 3-4 visual steps
+  2. User sees current app status (waiting, recording, uploading, ready) updating in real time to match tray icon state
+  3. User can toggle minimap position between left and right, and the setting persists across app restarts
+  4. User can see the minimap size option with a "recommended for AI accuracy" label on the large setting
+  5. Window auto-hides when the app enters recording state to prevent minimap capture interference
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 10: Activity Log + Event Bridge
+**Goal**: User can watch a live feed of game events proving the app is actively working, with visual clarity for quick scanning
+**Depends on**: Phase 9
+**Requirements**: [LOG-01, LOG-02, LOG-03]
+**Success Criteria** (what must be TRUE):
+  1. User sees game events (deaths, kills, objectives, uploads, errors) appear in real time with game-time timestamps
+  2. Events are visually distinguishable by type through color coding (deaths red, kills green, objectives gold, errors orange)
+  3. Log stays bounded in memory — old entries are dropped after reaching the cap, and no sensitive data (URLs, tokens, payloads) is ever displayed
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 11: Build Configuration + Validation
+**Goal**: User can download and run a single .exe that includes the full GUI experience without requiring Python or manual setup
+**Depends on**: Phase 10
+**Requirements**: [APP-04]
+**Success Criteria** (what must be TRUE):
+  1. PyInstaller produces a working .exe that launches the full GUI (dark theme, all panels, activity log) without import errors or crashes
+  2. Built .exe includes CustomTkinter assets (fonts, themes) and renders with modern dark styling — not raw tkinter gray widgets
+  3. Built .exe runs correctly on a clean Windows machine without Python installed
+**Plans**: TBD
+
 ## Progress
+
+### v1.0 — Core Product
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -120,3 +197,13 @@ Plans:
 | 4. Match Experience and Trustworthy UX | 3/3 | Complete | 2026-04-01 |
 | 5. Regression Safety Net | 2/2 | Complete (pending test execution) | 2026-04-01 |
 | 6. Community-Ready Hardening | 0/2 | Not started | - |
+
+### v1.1 — MVPApp Desktop GUI
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 7. Threading Foundation + EventBus | 0/? | Not started | - |
+| 8. GUI Shell + Tray Integration | 0/? | Not started | - |
+| 9. Content Panels — Status, How-It-Works, Settings | 0/? | Not started | - |
+| 10. Activity Log + Event Bridge | 0/? | Not started | - |
+| 11. Build Configuration + Validation | 0/? | Not started | - |

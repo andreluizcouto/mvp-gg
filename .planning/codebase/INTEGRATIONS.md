@@ -21,7 +21,7 @@
 - Polls localhost during active League of Legends matches
   - Base URL: `https://127.0.0.1:2999` (self-signed cert, `verify=False`)
   - Endpoints used: `/liveclientdata/gamestats`, `/liveclientdata/activeplayer`, `/liveclientdata/playerlist`, `/liveclientdata/eventdata`
-- Used by the CoachApp desktop client during live games
+- Used by the MVPApp desktop client during live games
 - Implemented in: `ProjectB/live_game_client.py`
 
 **Riot Data Dragon (DDragon):**
@@ -64,7 +64,7 @@
 **Live Game Events:**
 - Source: Riot Live Client Data API (localhost:2999)
 - Available only while LoL is running on the player's machine
-- Captured by CoachApp desktop app; minimap screenshots captured with `mss` and encoded as base64
+- Captured by MVPApp desktop app; minimap screenshots captured with `mss` and encoded as base64
 - Data stored in-memory during session, then uploaded to backend at game end
 
 **AI Coaching Analysis:**
@@ -84,9 +84,9 @@
 - Called via `send_to_make()` in `ProjectB/main.py`
 - Used for feedback/analytics pipeline; no-op if env var is empty
 
-**Outbound — Render Backend (from CoachApp desktop):**
-- CoachApp posts game data to: `{BACKEND_URL}/local/upload` (POST)
-- CoachApp polls analysis status at: `{BACKEND_URL}/local/status` (GET)
+**Outbound — Render Backend (from MVPApp desktop):**
+- MVPApp posts game data to: `{BACKEND_URL}/local/upload` (POST)
+- MVPApp polls analysis status at: `{BACKEND_URL}/local/status` (GET)
 - Auth: `X-App-Token` header (hardcoded default token in `ProjectB/coach_app.py`, overridable via `.env`)
 - Backend URL defaults to `https://lol-coach-backend-z4b7.onrender.com`
 
@@ -99,7 +99,7 @@
 **Backend Hosting:**
 - Platform: Render (free tier)
 - URL: `https://lol-coach-backend-z4b7.onrender.com`
-- Cold start delay: 30–60 seconds (CoachApp has explicit warmup logic in `ProjectB/coach_app.py`)
+- Cold start delay: 30–60 seconds (MVPApp has explicit warmup logic in `ProjectB/coach_app.py`)
 
 **Frontend Hosting:**
 - Platform: Vercel
@@ -120,13 +120,13 @@
 - `ANTHROPIC_API_KEY` — Anthropic API key
 - `SUPABASE_URL` — Supabase project URL (e.g. `https://xxx.supabase.co`)
 - `SUPABASE_KEY` — Supabase anon key
-- `APP_TOKEN` — shared secret between CoachApp desktop client and backend
+- `APP_TOKEN` — shared secret between MVPApp desktop client and backend
 
 **Optional backend env vars:**
 - `CORS_ORIGINS` — comma-separated allowed origins (default includes Vercel + localhost:5173)
 - `MAKE_FEEDBACK_WEBHOOK_URL` — Make.com automation webhook
 - `RENDER_BACKEND_URL` — override for backend URL used in coaching upload
-- `BACKEND_URL` — override for CoachApp desktop to target local dev backend
+- `BACKEND_URL` — override for MVPApp desktop to target local dev backend
 - `DEBUG_MODE` — enables debug endpoints when `"true"`
 
 **Frontend env vars:**

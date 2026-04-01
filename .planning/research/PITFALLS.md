@@ -1,4 +1,4 @@
-# Domain Pitfalls: Adding CustomTkinter GUI to CoachApp
+# Domain Pitfalls: Adding CustomTkinter GUI to MVPApp
 
 **Domain:** Desktop GUI integration into existing headless Python app (pystray + asyncio + mss)
 **Researched:** 2025-07-10
@@ -177,7 +177,7 @@ a = Analysis(
 
 At runtime, CustomTkinter finds its assets via `__file__` resolution. In a PyInstaller bundle, `customtkinter.__file__` resolves inside `_MEIPASS` (one-file) or the dist directory (one-dir). The `datas` entry above places the files where CustomTkinter expects them.
 
-**Verify after build:** Check that `dist/CoachApp/customtkinter/assets/themes/` contains JSON theme files.
+**Verify after build:** Check that `dist/MVPApp/customtkinter/assets/themes/` contains JSON theme files.
 
 **Detection:** If the GUI window appears but looks like plain gray tkinter widgets instead of modern CustomTkinter styling, assets are missing.
 
@@ -263,7 +263,7 @@ def save_config(cfg: dict, config_dir: str | None = None) -> None:
 
 3. **Use `overrideredirect` carefully:** If making a borderless window, ensure it's not set to always-on-top, which would guarantee overlap.
 
-4. **Document to users:** "CoachApp minimizes automatically during games to avoid interfering with captures."
+4. **Document to users:** "MVPApp minimizes automatically during games to avoid interfering with captures."
 
 **Detection:** During testing, open the GUI → start a League game → check the captured minimap PNGs in `%TEMP%/lol_coach_prints/`. If any contain GUI elements, the overlap is happening.
 
@@ -323,7 +323,7 @@ def request_shutdown(self):
 
 The `self.after(0, self.destroy)` is critical — if called from the tray thread, `destroy()` must be marshaled to the main thread via `after()`.
 
-**Detection:** Quit from tray → check Task Manager. If `CoachApp.exe` is still running, shutdown coordination is broken.
+**Detection:** Quit from tray → check Task Manager. If `MVPApp.exe` is still running, shutdown coordination is broken.
 
 **Confidence:** HIGH — direct consequence of the three-thread architecture.
 
@@ -452,7 +452,7 @@ Issues that cause confusion, wasted time, or minor UX problems.
 
 **Prevention:**
 ```python
-pystray.MenuItem("Abrir CoachApp", self._show_window, default=True, visible=False)
+pystray.MenuItem("Abrir MVPApp", self._show_window, default=True, visible=False)
 ```
 The `default=True` makes it fire on double-click. `visible=False` keeps it from cluttering the context menu.
 
@@ -472,7 +472,7 @@ The `default=True` makes it fire on double-click. `visible=False` keeps it from 
 
 ### Pitfall 16: Focus Stealing — GUI Window Appearing Over League Client
 
-**What goes wrong:** If the GUI window is shown (deiconified) while League of Legends is in the foreground, it can steal focus from the game. This is extremely disruptive to the player — they could die in-game because the CoachApp window popped up.
+**What goes wrong:** If the GUI window is shown (deiconified) while League of Legends is in the foreground, it can steal focus from the game. This is extremely disruptive to the player — they could die in-game because the MVPApp window popped up.
 
 **Prevention:**
 - Never auto-show the GUI window during `"recording"` state.
@@ -491,8 +491,8 @@ The `default=True` makes it fire on double-click. `visible=False` keeps it from 
 
 **Prevention:** Stick with one-dir mode (current spec already uses `COLLECT`). Verify after build:
 ```
-dist/CoachApp/
-  CoachApp.exe
+dist/MVPApp/
+  MVPApp.exe
   customtkinter/
     assets/
       themes/
@@ -504,7 +504,7 @@ dist/CoachApp/
     ...
 ```
 
-If the `customtkinter/` directory exists alongside `CoachApp.exe`, asset resolution will work.
+If the `customtkinter/` directory exists alongside `MVPApp.exe`, asset resolution will work.
 
 **Confidence:** HIGH — current spec uses one-dir, which is simpler.
 

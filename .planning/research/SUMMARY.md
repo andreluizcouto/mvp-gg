@@ -1,13 +1,13 @@
-# Research Summary: CoachApp Desktop GUI (v1.1)
+# Research Summary: MVPApp Desktop GUI (v1.1)
 
-**Project:** mvp.gg CoachApp
+**Project:** mvp.gg MVPApp
 **Domain:** Desktop companion app — GUI integration onto existing headless pystray + asyncio architecture
 **Researched:** 2025-07-17
 **Confidence:** HIGH
 
 ## Executive Summary
 
-The CoachApp v1.1 milestone is a **threading integration challenge**, not a feature-complexity challenge. The existing headless app already captures minimap screenshots, detects game events (deaths, kills, objectives), and uploads to the cloud for AI coaching analysis. What's needed is a visual layer that explains, displays, and configures that behavior — without breaking the proven async + tray architecture that powers it.
+The MVPApp v1.1 milestone is a **threading integration challenge**, not a feature-complexity challenge. The existing headless app already captures minimap screenshots, detects game events (deaths, kills, objectives), and uploads to the cloud for AI coaching analysis. What's needed is a visual layer that explains, displays, and configures that behavior — without breaking the proven async + tray architecture that powers it.
 
 The core technical risk is the **three-way threading conflict**: pystray currently blocks the main thread, asyncio runs on a daemon thread, and now CustomTkinter needs the main thread for its GUI event loop. The recommended architecture — verified via live proof-of-concept — inverts the current model: CustomTkinter takes the main thread, pystray moves to a background thread via `run_detached()` (confirmed in pystray 0.19.5 source), and asyncio stays on its daemon thread unchanged. A new `EventBus` backed by `queue.Queue` bridges all three threads, with tkinter's `after(100ms)` polling the queue on the main thread. This restructuring touches primarily `coach_app.py`'s `main()` function; the capture pipeline, Riot API client, and upload logic require zero modification.
 
@@ -69,7 +69,7 @@ The architecture is a **three-thread model with a central event bus**. CustomTki
 |-----------|------|--------|----------------|
 | **EventBus** | `event_bus.py` | NEW | Thread-safe `queue.Queue` wrapper with typed `BusMessage` (GAME_EVENT, STATUS_CHANGE, SHOW_WINDOW, HIDE_WINDOW, SHUTDOWN) |
 | **GuiWindow** | `gui_window.py` | NEW | CustomTkinter CTk window — status bar, settings panel, activity log, how-it-works. Polls EventBus via `after()`. |
-| **TrayIcon** | `tray_icon.py` | MODIFIED | Add "Open CoachApp" menu item (`default=True` for double-click). Show/hide via EventBus, never direct tkinter calls. |
+| **TrayIcon** | `tray_icon.py` | MODIFIED | Add "Open MVPApp" menu item (`default=True` for double-click). Show/hide via EventBus, never direct tkinter calls. |
 | **coach_app** | `coach_app.py` | MODIFIED | Entry point restructured for 3-thread model. Creates EventBus, wires components, manages shutdown sequence. |
 | **LiveCoachSession** | `live_coach.py` | UNCHANGED | Event detection, minimap capture. Already emits to `events_queue`. |
 | **AppConfig** | `app_config.py` | MINOR MOD | Add `threading.Lock` for thread-safe read-modify-write (currently zero synchronization). |
@@ -106,7 +106,7 @@ The 17 identified pitfalls distill into 5 architectural threats that must be add
 
 ### Phase 2: GUI Shell + Tray Integration
 **Rationale:** The basic window must exist and correctly coexist with pystray before any content panels make sense. Show/hide, close-to-tray, and tray double-click are the user-facing proof that the threading model works.
-**Delivers:** `gui_window.py` basic shell (CTk window, dark theme, hide-on-close, bus polling skeleton), `tray_icon.py` modified with "Open CoachApp" menu item, show/hide via EventBus.
+**Delivers:** `gui_window.py` basic shell (CTk window, dark theme, hide-on-close, bus polling skeleton), `tray_icon.py` modified with "Open MVPApp" menu item, show/hide via EventBus.
 **Addresses features:** Window shell, minimize to system tray, tray double-click.
 **Avoids pitfalls:** #7 (close kills app), #14 (tray double-click expectation), #16 (focus stealing — don't force focus during game).
 
@@ -183,5 +183,5 @@ The 17 identified pitfalls distill into 5 architectural threats that must be add
 - `after()` callback behavior for withdrawn windows — generally works on Windows, but edge cases may exist
 
 ---
-*Research completed: 2025-07-17 — v1.1 CoachApp Desktop GUI milestone*
+*Research completed: 2025-07-17 — v1.1 MVPApp Desktop GUI milestone*
 *Ready for roadmap: yes*

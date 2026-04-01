@@ -36,7 +36,7 @@
 - [ ] **QUAL-01**: Automated tests cover the critical search, ingestion, analysis, and rendering paths most likely to regress
 - [x] **QUAL-02**: System performs explicit verification between ingestion, context building, AI output validation, and frontend delivery
 
-## v1.1 Requirements — CoachApp Desktop GUI
+## v1.1 Requirements — MVPApp Desktop GUI
 
 ### Desktop App Infrastructure
 
@@ -47,7 +47,7 @@
 
 ### Desktop App Window
 
-- [ ] **WIN-01**: User sees a clean, dark-mode main window with app branding when launching CoachApp
+- [ ] **WIN-01**: User sees a clean, dark-mode main window with app branding when launching MVPApp
 - [ ] **WIN-02**: User can close the window and the app minimizes to system tray instead of exiting
 - [ ] **WIN-03**: User can show the window again by double-clicking the tray icon
 - [ ] **WIN-04**: Window auto-hides during active recording to prevent minimap capture interference
@@ -105,19 +105,34 @@
 | ANLY-02 | Phase 3 | Complete |
 | ANLY-03 | Phase 3 | Complete |
 | ANLY-04 | Phase 3 | Complete |
-| UX-01 | Phase 4 | Pending |
-| UX-02 | Phase 4 | Pending |
-| DATA-03 | Phase 4 | Pending |
-| QUAL-01 | Phase 5 | Pending |
+| UX-01 | Phase 4 | Complete |
+| UX-02 | Phase 4 | Complete |
+| DATA-03 | Phase 4 | Complete |
+| QUAL-01 | Phase 5 | Complete |
 | UX-03 | Phase 6 | Pending |
+| APP-01 | Phase 7 | Pending |
+| APP-02 | Phase 7 | Pending |
+| APP-03 | Phase 7 | Pending |
+| WIN-01 | Phase 8 | Pending |
+| WIN-02 | Phase 8 | Pending |
+| WIN-03 | Phase 8 | Pending |
+| CNT-01 | Phase 9 | Pending |
+| CNT-02 | Phase 9 | Pending |
+| CNT-03 | Phase 9 | Pending |
+| CNT-04 | Phase 9 | Pending |
+| WIN-04 | Phase 9 | Pending |
+| LOG-01 | Phase 10 | Pending |
+| LOG-02 | Phase 10 | Pending |
+| LOG-03 | Phase 10 | Pending |
+| APP-04 | Phase 11 | Pending |
 
 **Coverage:**
 - v1 requirements: 16 total
 - Mapped to phases: 16
 - Unmapped: 0
 - v1.1 requirements: 15 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 15
+- Mapped to phases: 15
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-01*

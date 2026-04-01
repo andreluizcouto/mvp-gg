@@ -1,6 +1,6 @@
-# Technology Stack — CoachApp Desktop GUI (v1.1)
+# Technology Stack — MVPApp Desktop GUI (v1.1)
 
-**Project:** mvp.gg CoachApp
+**Project:** mvp.gg MVPApp
 **Milestone:** v1.1 Desktop GUI
 **Researched:** 2025-07-17
 **Overall Confidence:** HIGH — all findings verified against installed packages and live code inspection

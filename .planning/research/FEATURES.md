@@ -1,4 +1,4 @@
-# Feature Landscape — CoachApp Desktop GUI (v1.1)
+# Feature Landscape — MVPApp Desktop GUI (v1.1)
 
 **Domain:** Desktop gaming companion app GUI (League of Legends post-game coaching)
 **Researched:** 2025-07-14
@@ -151,4 +151,4 @@ Based on `live_coach.py` analysis, these are the concrete events the GUI log wil
 - **CustomTkinter + pystray integration** (MEDIUM confidence): Threading model is a known pattern in the Python desktop app community, but specific edge cases depend on Windows version and pystray backend (win32)
 
 ---
-*Research completed: 2025-07-14 — v1.1 CoachApp Desktop GUI milestone*
+*Research completed: 2025-07-14 — v1.1 MVPApp Desktop GUI milestone*

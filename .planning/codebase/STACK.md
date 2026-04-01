@@ -35,11 +35,11 @@
 - PostCSS `^8.5.8` — CSS processing (`ProjectB-frontend/postcss.config.js`)
 - Autoprefixer `^10.4.27` — CSS vendor prefixes
 
-**Desktop App (CoachApp):**
+**Desktop App (MVPApp):**
 - pystray `>=0.19.0` — system tray icon on Windows (`ProjectB/tray_icon.py`)
 - mss `>=9.0.0` — cross-platform screen capture / minimap capture (`ProjectB/minimap_capture.py`)
 - Pillow `>=10.0.0` — image processing (minimap screenshots to base64)
-- PyInstaller — packages `coach_app.py` into `dist/CoachApp/CoachApp.exe` (one-dir mode)
+- PyInstaller — packages `coach_app.py` into `dist/MVPApp/MVPApp.exe` (one-dir mode)
 
 **AI / LLM:**
 - google-genai `1.10.0` — Gemini 2.5 Flash SDK (`ProjectB/coach_ai.py`)
@@ -49,7 +49,7 @@
 - supabase `>=2.11.0` — async Supabase client (`ProjectB/db.py`)
 
 **HTTP Client:**
-- httpx `>=0.28.1,<1.0.0` — async HTTP for Riot API calls, internal backend calls, and CoachApp uploads
+- httpx `>=0.28.1,<1.0.0` — async HTTP for Riot API calls, internal backend calls, and MVPApp uploads
 
 **Testing:**
 - pytest `>=8.0.0`
@@ -62,7 +62,7 @@
 **Backend:**
 - `ProjectB/build.bat` — builds Windows `.exe` via PyInstaller
 - `ProjectB/coach.spec` — PyInstaller spec (one-dir, windowed/no console, UPX compression)
-- Output: `ProjectB/dist/CoachApp/CoachApp.exe`
+- Output: `ProjectB/dist/MVPApp/MVPApp.exe`
 
 **Frontend:**
 - `vite build` — production bundle to `ProjectB-frontend/dist/`

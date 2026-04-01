@@ -1,4 +1,4 @@
-# Architecture Patterns: CoachApp Desktop GUI Integration
+# Architecture Patterns: MVPApp Desktop GUI Integration
 
 **Domain:** Desktop companion app — GUI overlay onto existing headless tray + asyncio architecture
 **Researched:** 2025-07-14
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-The CoachApp currently runs on two threads: pystray blocks the main thread, and asyncio runs on a daemon thread. Adding CustomTkinter requires resolving a three-way threading conflict — tkinter, pystray, and asyncio all want long-running event loops. The recommended architecture puts CustomTkinter on the main thread (where GUI frameworks are most reliable), moves pystray to a daemon thread (fully supported on Windows via the win32 backend), keeps asyncio on its existing daemon thread, and bridges them with a thread-safe `queue.Queue` polled by tkinter's `after()` scheduler.
+The MVPApp currently runs on two threads: pystray blocks the main thread, and asyncio runs on a daemon thread. Adding CustomTkinter requires resolving a three-way threading conflict — tkinter, pystray, and asyncio all want long-running event loops. The recommended architecture puts CustomTkinter on the main thread (where GUI frameworks are most reliable), moves pystray to a daemon thread (fully supported on Windows via the win32 backend), keeps asyncio on its existing daemon thread, and bridges them with a thread-safe `queue.Queue` polled by tkinter's `after()` scheduler.
 
 ## Current Architecture (Before GUI)
 
@@ -250,7 +250,7 @@ This runs on the main thread already — no cross-thread concern.
 **pystray double-click to open:**
 ```python
 # In TrayIcon._build_menu() — make "Open" the default (double-click) action
-pystray.MenuItem("Open CoachApp", self._show_window, default=True),
+pystray.MenuItem("Open MVPApp", self._show_window, default=True),
 ```
 
 ### Pattern 4: Settings Changes (GUI → config → capture)
@@ -286,7 +286,7 @@ def main() -> None:
     bus = EventBus()
 
     def on_quit():
-        logger.info("Shutting down CoachApp...")
+        logger.info("Shutting down MVPApp...")
         stop_event.set()
         bus.put(BusMessage(type=MessageType.SHUTDOWN))
 
@@ -313,7 +313,7 @@ def main() -> None:
     on_quit()  # ensure stop_event is set even if window closed unexpectedly
     tray.stop()
     async_thread.join(timeout=5.0)
-    logger.info("CoachApp shut down.")
+    logger.info("MVPApp shut down.")
 ```
 
 **Key change from current code:** `tray.run()` moves from main thread to daemon thread. `window.mainloop()` takes the main thread. The asyncio thread is unchanged but now also runs the `event_bridge` task.
@@ -447,7 +447,7 @@ Step 3: coach_app.py — threading refactor (MODIFY)
 
 Step 4: tray_icon.py — integration (MODIFY)
    └── Depends on: event_bus.py, coach_app.py refactor
-   └── Build: "Open CoachApp" menu item (default=True), show/hide via bus.
+   └── Build: "Open MVPApp" menu item (default=True), show/hide via bus.
    └── Keep existing settings items in tray menu for quick access.
 
 Step 5: gui_window.py — "How it works" + status display (EXTEND)
@@ -479,4 +479,4 @@ Step 8: coach.spec — build config (MODIFY)
 - **PyInstaller** (HIGH confidence): `excludes`, `hiddenimports`, `datas` configuration for CustomTkinter bundling — well-documented issue in CustomTkinter community
 
 ---
-*Research completed: 2025-07-14 — v1.1 CoachApp Desktop GUI milestone*
+*Research completed: 2025-07-14 — v1.1 MVPApp Desktop GUI milestone*

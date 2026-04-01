@@ -8,7 +8,7 @@ mvp.gg is a League of Legends AI coaching platform with three distinct runtime e
 
 1. **Cloud API** (`ProjectB/main.py` served on Render) — FastAPI backend consumed by the website. Handles summoner lookups, match history, scoreboard data, AI analysis cache (read/write via Supabase), and coaching delivery to the frontend.
 2. **Web Frontend** (`ProjectB-frontend/`) — React SPA deployed on Vercel. Lets users search summoners, browse match history, and read AI coaching reports.
-3. **Local Desktop App** (`ProjectB/coach_app.py` compiled to `CoachApp.exe`) — Windows tray app that runs on the player's machine during live games. Monitors the Riot Live Client API, captures minimap screenshots, and uploads post-game event data to the cloud API for AI analysis.
+3. **Local Desktop App** (`ProjectB/coach_app.py` compiled to `MVPApp.exe`) — Windows tray app that runs on the player's machine during live games. Monitors the Riot Live Client API, captures minimap screenshots, and uploads post-game event data to the cloud API for AI analysis.
 
 The three components are loosely coupled: the desktop app produces analysis; the cloud API stores and exposes it; the web frontend displays it. No real-time channel exists between the desktop app and the frontend — communication is asynchronous through Supabase as the shared data store.
 
