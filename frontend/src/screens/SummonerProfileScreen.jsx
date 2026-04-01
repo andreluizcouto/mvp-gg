@@ -56,7 +56,7 @@ function InlineScoreboard({ data, fallbackTag }) {
   if (!data?.teams) return null
 
   return (
-    <div className="rounded-lg border border-black-800/40 w-full max-w-[1100px] mx-auto overflow-hidden">
+    <div className="rounded-lg border border-black-800/40 w-full max-w-[1200px] mx-auto overflow-hidden">
       <div className="w-full">
       {data.teams.map((team, ti) => {
         const isBlue = team.side === "blue"
@@ -93,15 +93,15 @@ function InlineScoreboard({ data, fallbackTag }) {
             {/* Gradiente divisor entre header e linhas do scoreboard */}
             <div className="w-full h-[1.5px] bg-gradient-to-r from-black-800/0 via-blue-400/15 to-black-800/0 scoreboard-divider" />
 
-            <div className="grid grid-cols-[32px_1.35fr_0.95fr_0.5fr_0.5fr_1.1fr_0.45fr_0.95fr] items-center gap-2 px-3 py-1.5 bg-black-900/30">
-              <div />
-              <div className="text-[10px] text-black-400 uppercase tracking-wider">Jogador</div>
-              <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KDA</div>
-              <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KP</div>
-              <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">CS</div>
-              <div className="text-[10px] text-black-400 uppercase tracking-wider">Dano</div>
-              <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">Vis</div>
-              <div className="text-left text-[10px] text-black-400 uppercase tracking-wider">Items</div>
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(240px,0.95fr)] items-center gap-3 px-3 py-1.5 bg-black-900/30">
+              <div className="text-[10px] text-black-400 uppercase tracking-wider">Jogador / Items</div>
+              <div className="grid grid-cols-5 gap-2">
+                <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KDA</div>
+                <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">KP</div>
+                <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">CS</div>
+                <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">Dano</div>
+                <div className="text-center text-[10px] text-black-400 uppercase tracking-wider">Vis</div>
+              </div>
             </div>
 
             {/* Gradiente divisor sutil após header das colunas */}
@@ -116,102 +116,103 @@ function InlineScoreboard({ data, fallbackTag }) {
               return (
                 <div
                   key={pi}
-                  className="grid grid-cols-[32px_1.35fr_0.95fr_0.5fr_0.5fr_1.1fr_0.45fr_0.95fr] items-center gap-2 px-3 py-2.5 hover:bg-white/[0.02] transition-colors"
+                  className="grid grid-cols-[minmax(0,1fr)_minmax(240px,0.95fr)] items-start gap-3 px-3 py-2.5 hover:bg-white/[0.02] transition-colors"
                   style={isTarget ? { background: "rgba(200,155,60,0.08)", borderLeft: "2px solid rgba(200,155,60,0.5)" } : {}}
                 >
-                  <div className="w-8 h-8 rounded overflow-hidden border border-white/10 bg-black-600">
-                    <img
-                      src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/${player.champion}.png`}
-                      alt={player.champion}
-                      className="w-full h-full object-cover"
-                      onError={e => { e.target.style.display = "none" }}
-                    />
-                  </div>
-
-                  <div className="min-w-0">
-                    {profilePath ? (
-                      <a
-                        href={profilePath}
-                         className="text-[11px] text-white/85 truncate hover:text-blue-400 hover:underline cursor-pointer transition-colors block max-w-full text-left"
-                        onClick={e => e.stopPropagation()}
-                      >
-                        {player.summoner_name || player.champion}
-                      </a>
-                    ) : (
-                       <p className="text-[11px] text-white/85 truncate">
-                        {player.summoner_name || player.champion}
-                      </p>
-                    )}
-                    {player.position && (
-                       <span className="text-[9px] text-black-400 bg-black-600/80 rounded px-1 py-0.5 inline-block mt-0.5">
-                        {getPositionLabel(player.position, "short")}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="text-center">
-                     <span className="text-[11px] text-white/90">{player.kills}</span>
-                     <span className="text-[10px] text-white/25"> / </span>
-                     <span className="text-[11px] text-red-400">{player.deaths}</span>
-                     <span className="text-[10px] text-white/25"> / </span>
-                     <span className="text-[11px] text-white/90">{player.assists}</span>
-                  </div>
-
-                  <div className="text-center">
-                    {player.kill_participation_pct != null && player.kill_participation_pct !== "" ? (
-                       <span className="text-[10px] text-black-300">{player.kill_participation_pct}%</span>
-                    ) : (
-                       <span className="text-[10px] text-black-500">—</span>
-                    )}
-                  </div>
-
-                  <div className="text-center">
-                    {player.cs_per_min ? (
-                       <span className="text-[10px] text-black-300">{player.cs_per_min}</span>
-                    ) : player.cs != null ? (
-                       <span className="text-[10px] text-black-300">{player.cs}</span>
-                    ) : (
-                       <span className="text-[10px] text-black-500">—</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1 min-w-0">
-                     <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${isTopDmg ? "shadow-[0_0_6px_1px_currentColor]" : ""}`}
-                        style={{
-                          width: `${dmgPct}%`,
-                          background: isTopDmg ? (isWin ? "rgba(74,201,126,1)" : "rgba(240,58,56,1)") : barColor,
-                          color: isWin ? "rgba(74,201,126,0.6)" : "rgba(240,58,56,0.6)",
-                        }}
+                  <div className="min-w-0 flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded overflow-hidden border border-white/10 bg-black-600 flex-shrink-0">
+                      <img
+                        src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/${player.champion}.png`}
+                        alt={player.champion}
+                        className="w-full h-full object-cover"
+                        onError={e => { e.target.style.display = "none" }}
                       />
                     </div>
-                     <span className={`text-[9px] w-10 text-right ${isTopDmg ? "text-black-100 font-bold" : "text-black-400"}`}>
-                      {player.total_damage >= 1000
-                        ? `${(player.total_damage / 1000).toFixed(1)}k`
-                        : player.total_damage}
-                    </span>
-                  </div>
 
-                  <div className="text-center">
-                    {player.vision_score != null
-                       ? <span className="text-[10px] text-black-400">{player.vision_score}</span>
-                       : <span className="text-[10px] text-black-500">—</span>}
-                  </div>
-
-                    <div className="flex justify-start flex-wrap gap-1 min-w-0 max-w-full">
-                    {(player.items ?? []).map((itemId, ii) => (
-                       <div key={ii} className="w-5 h-5 rounded bg-black-600/50 overflow-hidden">
-                        {itemId > 0 && (
-                          <img
-                            src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/item/${itemId}.png`}
-                            alt=""
-                            className="w-full h-full object-cover"
-                            onError={e => { e.target.style.display = "none" }}
-                          />
+                    <div className="min-w-0 flex-1">
+                      {profilePath ? (
+                        <a
+                          href={profilePath}
+                          className="text-[11px] text-white/85 truncate hover:text-blue-400 hover:underline cursor-pointer transition-colors block max-w-full text-left"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          {player.summoner_name || player.champion}
+                        </a>
+                      ) : (
+                        <p className="text-[11px] text-white/85 truncate">
+                          {player.summoner_name || player.champion}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {player.position && (
+                          <span className="text-[9px] text-black-400 bg-black-600/80 rounded px-1 py-0.5 inline-block">
+                            {getPositionLabel(player.position, "short")}
+                          </span>
                         )}
                       </div>
-                    ))}
+                      <div className="flex items-center gap-1 mt-1.5 min-w-0 flex-wrap">
+                        {(player.items ?? []).map((itemId, ii) => (
+                          <div key={ii} className="w-5 h-5 rounded bg-black-600/50 overflow-hidden flex-shrink-0">
+                            {itemId > 0 && (
+                              <img
+                                src={`https://ddragon.leagueoflegends.com/cdn/${DDV}/img/item/${itemId}.png`}
+                                alt=""
+                                className="w-full h-full object-cover"
+                                onError={e => { e.target.style.display = "none" }}
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-5 gap-2 items-center min-w-0">
+                    <div className="text-center">
+                      <span className="text-[11px] text-white/90">{player.kills}</span>
+                      <span className="text-[10px] text-white/25"> / </span>
+                      <span className="text-[11px] text-red-400">{player.deaths}</span>
+                      <span className="text-[10px] text-white/25"> / </span>
+                      <span className="text-[11px] text-white/90">{player.assists}</span>
+                    </div>
+                    <div className="text-center">
+                      {player.kill_participation_pct != null && player.kill_participation_pct !== "" ? (
+                        <span className="text-[10px] text-black-300">{player.kill_participation_pct}%</span>
+                      ) : (
+                        <span className="text-[10px] text-black-500">—</span>
+                      )}
+                    </div>
+                    <div className="text-center">
+                      {player.cs_per_min ? (
+                        <span className="text-[10px] text-black-300">{player.cs_per_min}</span>
+                      ) : player.cs != null ? (
+                        <span className="text-[10px] text-black-300">{player.cs}</span>
+                      ) : (
+                        <span className="text-[10px] text-black-500">—</span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="h-2 bg-white/5 rounded-full overflow-hidden mb-1">
+                        <div
+                          className={`h-full rounded-full transition-all ${isTopDmg ? "shadow-[0_0_6px_1px_currentColor]" : ""}`}
+                          style={{
+                            width: `${dmgPct}%`,
+                            background: isTopDmg ? (isWin ? "rgba(74,201,126,1)" : "rgba(240,58,56,1)") : barColor,
+                            color: isWin ? "rgba(74,201,126,0.6)" : "rgba(240,58,56,0.6)",
+                          }}
+                        />
+                      </div>
+                      <div className={`text-[9px] text-right ${isTopDmg ? "text-black-100 font-bold" : "text-black-400"}`}>
+                        {player.total_damage >= 1000
+                          ? `${(player.total_damage / 1000).toFixed(1)}k`
+                          : player.total_damage}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      {player.vision_score != null
+                        ? <span className="text-[10px] text-black-400">{player.vision_score}</span>
+                        : <span className="text-[10px] text-black-500">—</span>}
+                    </div>
                   </div>
                 </div>
               )
