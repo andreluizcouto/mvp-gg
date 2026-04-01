@@ -10,7 +10,7 @@ from typing import Callable
 import pystray
 from PIL import Image, ImageDraw
 
-from app_config import get_config, save_config
+from app_config import get_config, update_config
 
 SITE_URL = "https://mvpgg.vercel.app"
 
@@ -40,7 +40,7 @@ def _make_icon_image(color: tuple) -> Image.Image:
 
 class TrayIcon:
     '''
-    Encapsula o icone da bandeja. Chame `run()` para bloquear a thread principal.
+    Encapsula o icone da bandeja. Chame `run_detached()` para iniciar em background thread.
     Use `set_state(state)` de qualquer thread para atualizar o icone e o menu.
     '''
 
@@ -65,15 +65,15 @@ class TrayIcon:
                 self._icon.title = f"CoachApp — {_STATUS_LABELS[state]}"
                 self._icon.update_menu()
 
-    def run(self) -> None:
-        '''Bloqueia a thread atual rodando o loop do icone.'''
+    def run_detached(self) -> None:
+        """Start tray on background thread. Non-blocking."""
         self._icon = pystray.Icon(
             name="CoachApp",
             icon=_make_icon_image(_COLORS["waiting"]),
-            title="CoachApp - Aguardando LoL...",
+            title="CoachApp — Aguardando LoL...",
             menu=self._build_menu(),
         )
-        self._icon.run()
+        self._icon.run_detached(setup=lambda icon: setattr(icon, 'visible', True))
 
     def stop(self) -> None:
         if self._icon:
@@ -116,13 +116,11 @@ class TrayIcon:
 
     def _toggle_left(self, icon, item) -> None:
         cfg = get_config()
-        cfg["minimap_left"] = not cfg["minimap_left"]
-        save_config(cfg)
+        update_config("minimap_left", not cfg.get("minimap_left", False))
 
     def _toggle_large(self, icon, item) -> None:
         cfg = get_config()
-        cfg["minimap_large"] = not cfg["minimap_large"]
-        save_config(cfg)
+        update_config("minimap_large", not cfg.get("minimap_large", False))
 
     def _quit(self, icon, item) -> None:
         self._on_quit()
