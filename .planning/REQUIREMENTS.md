@@ -36,6 +36,35 @@
 - [ ] **QUAL-01**: Automated tests cover the critical search, ingestion, analysis, and rendering paths most likely to regress
 - [x] **QUAL-02**: System performs explicit verification between ingestion, context building, AI output validation, and frontend delivery
 
+## v1.1 Requirements — CoachApp Desktop GUI
+
+### Desktop App Infrastructure
+
+- [ ] **APP-01**: App runs CustomTkinter GUI on main thread with pystray on detached thread and asyncio on daemon thread without deadlocks or crashes
+- [ ] **APP-02**: Cross-thread events flow from asyncio loop to GUI via EventBus (queue.Queue + after() polling)
+- [ ] **APP-03**: Config read/write is thread-safe with locking to prevent race conditions between GUI, tray, and capture threads
+- [ ] **APP-04**: PyInstaller build bundles CustomTkinter assets and produces a working .exe
+
+### Desktop App Window
+
+- [ ] **WIN-01**: User sees a clean, dark-mode main window with app branding when launching CoachApp
+- [ ] **WIN-02**: User can close the window and the app minimizes to system tray instead of exiting
+- [ ] **WIN-03**: User can show the window again by double-clicking the tray icon
+- [ ] **WIN-04**: Window auto-hides during active recording to prevent minimap capture interference
+
+### Desktop App Content
+
+- [ ] **CNT-01**: User sees a "How it works" panel explaining what the app does and how to use it
+- [ ] **CNT-02**: User sees current app status (waiting for game, recording, uploading, ready) matching tray icon states
+- [ ] **CNT-03**: User can toggle minimap position between left and right
+- [ ] **CNT-04**: User can see minimap size recommendation ("Grande" labeled as recommended for AI accuracy)
+
+### Desktop App Activity Log
+
+- [ ] **LOG-01**: User sees a real-time feed of game events (deaths, kills, objectives, captures, uploads, errors) with timestamps
+- [ ] **LOG-02**: Events are color-coded by type for quick visual scanning
+- [ ] **LOG-03**: Log is RAM-only with bounded size to prevent memory growth — no sensitive data exposed
+
 ## v2 Requirements
 
 ### Advanced Coaching
@@ -86,7 +115,10 @@
 - v1 requirements: 16 total
 - Mapped to phases: 16
 - Unmapped: 0
+- v1.1 requirements: 15 total
+- Mapped to phases: 0 (pending roadmap)
+- Unmapped: 15
 
 ---
 *Requirements defined: 2026-04-01*
-*Last updated: 2026-04-01 after initial definition*
+*Last updated: 2026-04-01 after v1.1 requirements definition*
