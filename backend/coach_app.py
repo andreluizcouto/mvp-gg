@@ -245,7 +245,7 @@ def main() -> None:
     _status_label.pack(side="left")
 
     def _update_status_ui(state: str, detail: str = ""):
-        """Update status dot and label. MUST run on main thread."""
+        """Update status dot and label + auto-hide on recording. MUST run on main thread."""
         label = _STATUS_LABELS.get(state, state)
         if detail:
             label = f"{label} ({detail})"
@@ -253,6 +253,17 @@ def main() -> None:
         hex_color = "#{:02x}{:02x}{:02x}".format(color[0], color[1], color[2])
         _status_dot.configure(text_color=hex_color)
         _status_label.configure(text=label)
+
+        # WIN-04: auto-hide window during recording to avoid minimap capture interference
+        if state == "recording":
+            if app.state() != "withdrawn":
+                app.withdraw()
+                logger.info("Janela ocultada automaticamente durante gravação")
+        elif state in ("uploading", "ready", "waiting"):
+            if app.state() == "withdrawn":
+                app.deiconify()
+                app.lift()
+                logger.info("Janela restaurada após gravação")
 
     # 5. Separator
     ctk.CTkFrame(app, height=2, fg_color="gray30").pack(fill="x", padx=30, pady=(15, 15))
@@ -284,7 +295,13 @@ def main() -> None:
         variable=_minimap_large_var, command=_on_toggle_large,
         font=ctk.CTkFont(size=14),
     )
-    _sw_large.pack(anchor="w", pady=8)
+    _sw_large.pack(anchor="w", pady=(8, 0))
+
+    _lbl_recommended = ctk.CTkLabel(
+        _opts_frame, text="⭐ Recomendado para precisão da IA",
+        font=ctk.CTkFont(size=11, slant="italic"), text_color="gray50",
+    )
+    _lbl_recommended.pack(anchor="w", padx=(52, 0), pady=(0, 8))
 
     # 7. Separator
     ctk.CTkFrame(app, height=2, fg_color="gray30").pack(fill="x", padx=30, pady=(15, 15))
