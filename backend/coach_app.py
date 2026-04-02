@@ -23,6 +23,8 @@ load_dotenv(os.path.join(_BASE_DIR, ".env"))
 import httpx
 
 import customtkinter as ctk
+from PIL import Image, ImageTk
+from app_config import get_config
 from event_bus import EventBus, EventType, Event
 from live_coach import LiveCoachSession
 from tray_icon import TrayIcon
@@ -39,6 +41,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger("coach_app")
 logger.info("CoachApp iniciando - base_dir=%s", _BASE_DIR)
+
+# Logo path (project root — _BASE_DIR is backend/)
+_LOGO_PATH = os.path.join(_BASE_DIR, "..", "mvpgg.png")
+
+# Dark mode MUST be set before CTk() constructor
+ctk.set_appearance_mode("dark")
 
 # Constantes
 BACKEND_URL = os.environ.get("BACKEND_URL", "https://lol-coach-backend-z4b7.onrender.com")
@@ -202,20 +210,64 @@ def main() -> None:
     # 1. Create CTk window on main thread (MUST be main thread)
     app = ctk.CTk()
     app.title("MVPApp")
-    app.geometry("400x500")
-    app.withdraw()  # Start hidden — Phase 8 will add the visible shell
+    app.geometry("450x600")
+    app.resizable(False, False)
 
+    # 2. Custom window icon (prevent CTk's 200ms default icon override)
+    if os.path.exists(_LOGO_PATH):
+        _icon_pil = Image.open(_LOGO_PATH).resize((64, 64), Image.Resampling.LANCZOS)
+        _icon_photo = ImageTk.PhotoImage(_icon_pil)
+        app._iconbitmap_method_called = True
+        app.iconphoto(True, _icon_photo)
+        app._icon_ref = _icon_photo  # prevent GC
+
+    # 3. Logo branding in window
+    if os.path.exists(_LOGO_PATH):
+        _logo_pil = Image.open(_LOGO_PATH)
+        _logo_ctk = ctk.CTkImage(light_image=_logo_pil, dark_image=_logo_pil, size=(280, 187))
+        _logo_label = ctk.CTkLabel(app, text="", image=_logo_ctk)
+        _logo_label.pack(pady=(30, 10))
+
+    # 4. Center on screen
+    app.update_idletasks()
+    sw, sh = app.winfo_screenwidth(), app.winfo_screenheight()
+    w, h = app.winfo_width(), app.winfo_height()
+    app.geometry(f"+{(sw - w) // 2}+{(sh - h) // 2}")
+
+    # 5. Show/restore window function
+    def show_window():
+        """Restore window to foreground. MUST run on main thread."""
+        app.deiconify()
+        app.lift()
+        app.focus_force()
+        tray.remove_notification()
+
+    # 6. Close-to-tray handler
+    def on_close_to_tray():
+        """WM_DELETE_WINDOW — hide to tray with optional notification."""
+        app.withdraw()
+        cfg = get_config()
+        if not cfg.get("hide_tray_notification", False):
+            tray.notify("MVPApp continua rodando no tray")
+
+    app.protocol("WM_DELETE_WINDOW", on_close_to_tray)
+
+    # 7. Quit handler
     def on_quit():
         """Called from any thread to initiate clean shutdown."""
         logger.info("Encerrando CoachApp...")
         stop_event.set()
-        app.after(0, app.quit)  # Schedule mainloop exit on main thread
+        app.after(0, app.quit)
 
-    # 2. Create and start tray on background thread
-    tray = TrayIcon(on_quit=on_quit)
-    tray.run_detached()  # Non-blocking — spawns Win32 message loop thread
+    # 8. Create and start tray on background thread
+    def on_show_from_tray():
+        """Called from pystray thread. Schedules show on main thread."""
+        app.after(0, show_window)
 
-    # 3. Start asyncio loop on daemon thread
+    tray = TrayIcon(on_quit=on_quit, on_show=on_show_from_tray)
+    tray.run_detached()
+
+    # 9. Start asyncio loop on daemon thread
     async_thread = threading.Thread(
         target=_run_async_loop,
         args=(tray, stop_event, event_bus),
@@ -223,13 +275,13 @@ def main() -> None:
     )
     async_thread.start()
 
-    # 4. Start EventBus polling (bridges queue → main thread)
+    # 10. Start EventBus polling (bridges queue → main thread)
     event_bus.start_polling(app)
 
-    # 5. Enter main loop (blocks until app.quit())
+    # 11. Enter main loop (blocks until app.quit())
     app.mainloop()
 
-    # 6. Cleanup after mainloop exits
+    # 12. Cleanup after mainloop exits
     tray.stop()
     async_thread.join(timeout=5.0)
     try:
