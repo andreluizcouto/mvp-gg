@@ -9,11 +9,23 @@ import HowItWorksScreen      from "./screens/HowItWorksScreen"
 import DownloadScreen        from "./screens/DownloadScreen"
 import TermsScreen           from "./screens/TermsScreen"
 import PrivacyScreen         from "./screens/PrivacyScreen"
+import LoginScreen           from "./screens/LoginScreen"
+import DashboardScreen       from "./screens/DashboardScreen"
+import { getSession }        from "./services/auth"
+
+function RequireAuth({ children }) {
+  const session = getSession()
+  if (!session?.access_token) {
+    return <Navigate to="/login" replace />
+  }
+  return children
+}
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/login" element={<LoginScreen />} />
         <Route element={<Layout />}>
           <Route path="/"                    element={<SearchScreen />} />
           <Route path="/summoner/:name/:tag" element={<SummonerProfileScreen />} />
@@ -24,6 +36,7 @@ export default function App() {
           <Route path="/download"            element={<DownloadScreen />} />
           <Route path="/terms"               element={<TermsScreen />} />
           <Route path="/privacy"             element={<PrivacyScreen />} />
+          <Route path="/dashboard"           element={<RequireAuth><DashboardScreen /></RequireAuth>} />
           <Route path="*"                    element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

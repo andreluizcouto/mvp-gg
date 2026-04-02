@@ -61,6 +61,11 @@ function normalizeOptionalRiotId(riotId) {
   }
 }
 
+function getAuthHeaders(accessToken) {
+  if (!accessToken) return {}
+  return { Authorization: `Bearer ${accessToken}` }
+}
+
 async function requestJson(path, { timeoutMs = API_TIMEOUT_MS, includeRequestId = false } = {}) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
@@ -91,6 +96,44 @@ async function requestJson(path, { timeoutMs = API_TIMEOUT_MS, includeRequestId 
     }
 
     return response.json()
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("Timeout ao consultar a API.")
+    }
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function requestJsonWithAuth(path, accessToken, { method = "GET", body, timeoutMs = API_TIMEOUT_MS } = {}) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  const headers = {
+    Accept: "application/json",
+    ...getAuthHeaders(accessToken),
+  }
+  if (body) headers["Content-Type"] = "application/json"
+
+  try {
+    const response = await fetch(`${BASE_URL}${path}`, {
+      method,
+      mode: "cors",
+      credentials: "omit",
+      cache: "no-store",
+      redirect: "error",
+      referrerPolicy: "no-referrer",
+      signal: controller.signal,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      const error = new Error(data.detail || `Erro ${response.status}`)
+      error.status = response.status
+      throw error
+    }
+    return data
   } catch (error) {
     if (error?.name === "AbortError") {
       throw new Error("Timeout ao consultar a API.")
@@ -158,6 +201,26 @@ export async function fetchCoachingStatus(matchIds, riotId = "") {
   } catch {
     return {}
   }
+}
+
+export async function fetchAuthorizedCoachingAnalysis(matchId, accessToken, riotId = "") {
+  const safeMatchId = validateMatchId(matchId)
+  const safeRiotId = normalizeOptionalRiotId(riotId)
+  const params = safeRiotId ? `?riot_id=${encodeURIComponent(safeRiotId)}` : ""
+  return requestJsonWithAuth(`/coaching/${encodeURIComponent(safeMatchId)}${params}`, accessToken)
+}
+
+export async function fetchAuthorizedCoachingStatus(matchIds, accessToken, riotId = "") {
+  if (!Array.isArray(matchIds) || matchIds.length === 0) return {}
+  const safeIds = matchIds.slice(0, 50).map(validateMatchId)
+  const ids = safeIds.join(",")
+  const safeRiotId = normalizeOptionalRiotId(riotId)
+  const riotParam = safeRiotId ? `&riot_id=${encodeURIComponent(safeRiotId)}` : ""
+  return requestJsonWithAuth(`/coaching/status?ids=${encodeURIComponent(ids)}${riotParam}`, accessToken)
+}
+
+export async function fetchAuthMe(accessToken) {
+  return requestJsonWithAuth("/auth/me", accessToken)
 }
 
 export async function fetchScoreboard(matchId, puuid = "") {
