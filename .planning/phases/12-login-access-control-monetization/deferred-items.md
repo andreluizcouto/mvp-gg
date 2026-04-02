@@ -1,0 +1,4 @@
+- [Out-of-scope] Frontend lint fails in `frontend/src/screens/ResultsScreen.jsx`:
+  - `no-unused-vars` for `isDirectLink` (line 270)
+  - `react-hooks/exhaustive-deps` missing `puuid` dependency (line 329)
+  - Discovered while executing Phase 12-04 release lint gate; file not modified by Phase 12 work.
