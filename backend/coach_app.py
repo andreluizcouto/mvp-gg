@@ -178,7 +178,7 @@ async def coach_loop(tray: TrayIcon, stop_event: threading.Event, event_bus: Eve
             if active:
                 champion = getattr(session, "_player_champion", None) or ""
                 tray.set_state("recording", detail=champion)
-                event_bus.emit(Event(EventType.STATE_CHANGE, {"state": "recording", "champion": champion}))
+                event_bus.emit(Event(EventType.STATE_CHANGE, {"state": "recording", "champion": champion, "riot_id": active}))
             await asyncio.sleep(1.0)
 
         if stop_event.is_set():
@@ -191,7 +191,9 @@ async def coach_loop(tray: TrayIcon, stop_event: threading.Event, event_bus: Eve
 
         riot_id = await _upload(session, tray)
         if riot_id:
+            event_bus.emit(Event(EventType.STATE_CHANGE, {"state": "uploading", "riot_id": riot_id}))
             await _poll_status(riot_id, tray)
+            event_bus.emit(Event(EventType.STATE_CHANGE, {"state": "ready", "riot_id": riot_id}))
         else:
             tray.set_state("waiting")
 
@@ -303,6 +305,18 @@ def main() -> None:
     )
     _lbl_recommended.pack(anchor="w", padx=(52, 0), pady=(0, 8))
 
+    _lbl_minimap_size = ctk.CTkLabel(
+        _opts_frame,
+        text="📐  Tamanho recomendado do minimapa no LoL: 50",
+        font=ctk.CTkFont(size=12), text_color="#4a9ed4",
+    )
+    _lbl_minimap_size.pack(anchor="w", padx=(8, 0), pady=(0, 5))
+
+    def _on_toggle_large_with_refresh():
+        update_config("minimap_large", _minimap_large_var.get())
+
+    _sw_large.configure(command=_on_toggle_large_with_refresh)
+
     # 7. Separator
     ctk.CTkFrame(app, height=2, fg_color="gray30").pack(fill="x", padx=30, pady=(15, 15))
 
@@ -310,9 +324,17 @@ def main() -> None:
     _btns_frame = ctk.CTkFrame(app, fg_color="transparent")
     _btns_frame.pack(fill="x", padx=40)
 
+    # Track current player's riot_id for profile link
+    _current_riot_id = {"value": ""}
+
     def _open_analysis():
         import webbrowser
-        webbrowser.open(SITE_URL)
+        rid = _current_riot_id["value"]
+        if rid and "#" in rid:
+            name, tag = rid.split("#", 1)
+            webbrowser.open(f"{SITE_URL}/summoner/{name}/{tag}")
+        else:
+            webbrowser.open(SITE_URL)
 
     _btn_analysis = ctk.CTkButton(
         _btns_frame, text="🔍  Ver análise", command=_open_analysis,
@@ -421,10 +443,13 @@ def main() -> None:
     )
     async_thread.start()
 
-    # 15. EventBus listener — update window status when state changes
+    # 15. EventBus listener — update window status + track riot_id
     def _on_state_event(event: Event):
         state = event.data.get("state", "waiting")
         detail = event.data.get("champion", "")
+        rid = event.data.get("riot_id", "")
+        if rid:
+            _current_riot_id["value"] = rid
         app.after(0, lambda: _update_status_ui(state, detail))
 
     event_bus.subscribe(EventType.STATE_CHANGE, _on_state_event)
