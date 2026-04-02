@@ -152,8 +152,12 @@ Plans:
   2. User can close the window via the X button and the app continues running in the system tray
   3. User can double-click the tray icon to restore the window to the foreground
   4. Tray context menu includes an "Open MVPApp" option that shows the window
-**Plans**: TBD
+**Plans**: 2 plans
 **UI hint**: yes
+
+Plans:
+- [ ] 08-01-PLAN.md — Config foundation (hide_tray_notification) + TrayIcon enhancements (on_show, Abrir menu item, notify helpers)
+- [ ] 08-02-PLAN.md — Dark-themed window shell with close-to-tray, tray restore, and integration tests
 
 ### Phase 9: Content Panels — Status, How-It-Works, Settings
 **Goal**: User can understand what the app does, see its current state, and configure capture settings — all from within the window
@@ -207,7 +211,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 7. Threading Foundation + EventBus | 2/2 | Complete   | 2026-04-01 |
-| 8. GUI Shell + Tray Integration | 0/? | Not started | - |
+| 8. GUI Shell + Tray Integration | 0/2 | Not started | - |
 | 9. Content Panels — Status, How-It-Works, Settings | 0/? | Not started | - |
 | 10. Activity Log + Event Bridge | 0/? | Not started | - |
 | 11. Build Configuration + Validation | 0/? | Not started | - |
