@@ -114,8 +114,9 @@ function UnavailableCoaching() {
       <CoachingHeader label="COACHING IA" active={false} />
       <div className="p-6 bg-black-800 text-center">
         <span className="text-[22px] block mb-2">🔒</span>
+        <p className="text-bm text-black-200 font-bold mb-1">Análise não disponível</p>
         <p className="text-bxs text-black-300 mb-3">
-          Coach indisponivel, baixe o app e jogue uma partida.
+          Baixe o app e jogue uma partida para desbloquear o coaching IA.
         </p>
         <a
           href={APP_DOWNLOAD_URL}

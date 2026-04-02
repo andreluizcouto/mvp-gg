@@ -1,4 +1,5 @@
 {
   "minimap_left": false,
-  "minimap_large": false
+  "minimap_large": false,
+  "hide_tray_notification": false
 }

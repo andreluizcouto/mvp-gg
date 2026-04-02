@@ -104,9 +104,11 @@ async function requestJson(path, { timeoutMs = API_TIMEOUT_MS, includeRequestId 
 export const BASE_URL = resolveBaseUrl()
 export const APP_DOWNLOAD_URL = `${BASE_URL}/downloads/app`
 
-export async function fetchMatchDetails(matchId) {
+export async function fetchMatchDetails(matchId, puuid = "") {
   const safeMatchId = validateMatchId(matchId)
-  return requestJson(`/match/${encodeURIComponent(safeMatchId)}`)
+  const safePuuid = String(puuid || "").trim().slice(0, 120)
+  const params = safePuuid ? `?puuid=${encodeURIComponent(safePuuid)}` : ""
+  return requestJson(`/match/${encodeURIComponent(safeMatchId)}${params}`)
 }
 
 export async function fetchMatches(nick, { start = 0, count = 10 } = {}) {

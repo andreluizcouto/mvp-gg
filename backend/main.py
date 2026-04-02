@@ -253,7 +253,8 @@ def _normalize_public_status(snapshot: dict | None, has_analysis: bool) -> str:
 
     if has_analysis:
         return "ready"
-    return "pending"
+    # Nothing at all — no snapshot, no analysis → data is truly unavailable
+    return "insufficient_data"
 
 
 def _missing_local_evidence(snapshot: dict | None) -> bool:
@@ -1457,26 +1458,73 @@ async def download_app_redirect(request: Request):
 # ─────────────────────────────────────────
 
 @app.get("/match/{match_id}")
-async def get_match_by_id(match_id: str, request: Request):
+async def get_match_by_id(match_id: str, request: Request, puuid: str = ""):
     """
     Retorna os dados completos da partida pelo match_id, no formato esperado pelo frontend.
+    Tenta Supabase primeiro; se não encontrar, faz fallback para Riot API.
     """
     await _check_public_limits(request, "match")
     match_id = _validate_match_id(match_id)
     try:
         sb = await get_supabase()
-        if sb is None:
-            raise HTTPException(status_code=503, detail="Serviço de dados indisponível.")
+        if sb is not None:
+            row = await _fetch_match_row(sb, match_id)
+            if row:
+                return _sanitize_match_payload(row)
 
-        row = await _fetch_match_row(sb, match_id)
-        if not row:
-            raise HTTPException(status_code=404, detail="Not Found")
+        # Fallback: build basic payload from Riot API
+        riot = RiotMatchClient(api_key=RIOT_KEY)
+        match_data = await riot.get_match(match_id)
+        if not match_data:
+            raise HTTPException(status_code=404, detail="Partida não encontrada.")
 
-        return _sanitize_match_payload(row)
+        info = match_data.raw.get("info", {})
+        participants = info.get("participants", [])
+        duration_min = round(info.get("gameDuration", 0) / 60)
+
+        # Find the target player by puuid (if provided)
+        target = None
+        if puuid:
+            target = next((p for p in participants if p.get("puuid") == puuid), None)
+        if not target and participants:
+            target = participants[0]
+        if not target:
+            raise HTTPException(status_code=404, detail="Partida não encontrada.")
+
+        cs = target.get("totalMinionsKilled", 0) + target.get("neutralMinionsKilled", 0)
+        riot_name = (target.get("riotIdGameName") or "").strip()
+        riot_tag = (target.get("riotIdTagline") or "").strip()
+        display_name = f"{riot_name}#{riot_tag}" if riot_name and riot_tag else riot_name
+
+        team_id = target.get("teamId", 100)
+        team_dmg = sum(p.get("totalDamageDealtToChampions", 0) for p in participants if p.get("teamId") == team_id) or 1
+        team_kills = sum(p.get("kills", 0) for p in participants if p.get("teamId") == team_id) or 1
+        player_dmg = target.get("totalDamageDealtToChampions", 0)
+
+        return {
+            "match_id": match_id,
+            "riot_id": display_name,
+            "summoner_name": display_name,
+            "champion": target.get("championName", ""),
+            "kills": target.get("kills", 0),
+            "deaths": target.get("deaths", 0),
+            "assists": target.get("assists", 0),
+            "win": bool(target.get("win", False)),
+            "duration_min": duration_min,
+            "position": target.get("teamPosition", ""),
+            "cs_per_min": round(cs / max(duration_min, 1), 1),
+            "vision_score": target.get("visionScore", 0),
+            "kill_participation_pct": round((target.get("kills", 0) + target.get("assists", 0)) / max(team_kills, 1) * 100, 1),
+            "damage_share_pct": round(player_dmg / max(team_dmg, 1) * 100, 1),
+            "items": [target.get(f"item{i}", 0) for i in range(7)],
+            "allies": [],
+            "puuid": target.get("puuid", ""),
+            "rank": "",
+        }
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Erro ao buscar match {match_id} no Supabase: {e}")
+        logger.error(f"Erro ao buscar match {match_id}: {e}")
         raise HTTPException(status_code=500, detail="Erro ao buscar partida.")
 
 

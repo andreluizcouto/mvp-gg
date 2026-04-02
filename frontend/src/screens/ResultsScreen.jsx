@@ -273,7 +273,7 @@ export default function ResultsScreen() {
   const isMockMode = searchParams.get("mock") === "1"
 
   const [activeTab,       setActiveTab]       = useState("geral")
-  const [coachingLoading, setCoachingLoading] = useState(!isDirectLink)
+  const [coachingLoading, setCoachingLoading] = useState(true)
   const [hasAnalysis,     setHasAnalysis]     = useState(false)
   const [analysis,        setAnalysis]        = useState(null)
   const [coachingApiStatus, setCoachingApiStatus] = useState(null)
@@ -311,7 +311,7 @@ export default function ResultsScreen() {
     if (!matchId) return
     setLoadingMatch(true)
     setErrorMatch("")
-    fetchMatchDetails(matchId)
+    fetchMatchDetails(matchId, puuid)
       .then(data => {
         setMatchStats(data)
         setPlayerNick(data.summoner_name || "")
@@ -320,15 +320,19 @@ export default function ResultsScreen() {
       })
       .catch(() => {
         setErrorMatch("Partida não encontrada ou erro ao carregar.")
+        setCoachingLoading(false)
       })
       .finally(() => setLoadingMatch(false))
   }, [isMockMode, matchId, matchStats, retryCount])
 
   useEffect(() => {
     if (isMockMode) return
-    if (isDirectLink) return
     if (!matchId) return
-    if (!playerNick) return
+    if (!playerNick) {
+      // Match loaded but no player identified — resolve coaching as unavailable
+      if (matchStats && !loadingMatch) setCoachingLoading(false)
+      return
+    }
     let cancelled = false
     fetchCoachingAnalysis(matchId, playerNick)
       .then(data => {
@@ -340,7 +344,7 @@ export default function ResultsScreen() {
       .catch(() => { if (!cancelled) { setHasAnalysis(false); setAnalysis(null); setCoachingApiStatus(null) } })
       .finally(() => { if (!cancelled) setCoachingLoading(false) })
     return () => { cancelled = true }
-  }, [isMockMode, matchId, playerNick, hasRouteMatchStats])
+  }, [isMockMode, matchId, playerNick, hasRouteMatchStats, matchStats, loadingMatch])
 
   useEffect(() => {
     if (isMockMode) return
