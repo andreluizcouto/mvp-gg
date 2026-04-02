@@ -305,6 +305,8 @@ export default function ResultsScreen() {
     setCoachingLoading(false)
   }, [isMockMode, matchId, puuid])
 
+  const [scoreboardOnly, setScoreboardOnly] = useState(false)
+
   useEffect(() => {
     if (isMockMode) return
     if (matchStats) return
@@ -319,7 +321,8 @@ export default function ResultsScreen() {
         setPuuid(data.puuid || "")
       })
       .catch(() => {
-        setErrorMatch("Partida não encontrada ou erro ao carregar.")
+        // Match not in Supabase — switch to scoreboard-only mode (Riot API)
+        setScoreboardOnly(true)
         setCoachingLoading(false)
       })
       .finally(() => setLoadingMatch(false))
@@ -348,7 +351,8 @@ export default function ResultsScreen() {
 
   useEffect(() => {
     if (isMockMode) return
-    if (!matchId || !matchStats) return
+    if (!matchId) return
+    if (!matchStats && !scoreboardOnly) return
     setScoreboardLoading(true)
     fetchScoreboard(matchId, puuid)
       .then(data => {
@@ -359,12 +363,11 @@ export default function ResultsScreen() {
         }
       })
       .catch(() => {
-        // Fallback: usa o riot_id do banco se o scoreboard falhar
         setPlayerNick(prev => prev || matchStats?.riot_id || "")
         setScoreboard(null)
       })
       .finally(() => setScoreboardLoading(false))
-  }, [isMockMode, matchId, matchStats, puuid])
+  }, [isMockMode, matchId, matchStats, puuid, scoreboardOnly])
 
   // Acesso via URL: extrai o nome do jogador correto pelo is_target do scoreboard
   useEffect(() => {
@@ -402,6 +405,63 @@ export default function ResultsScreen() {
   if (loadingMatch) {
     return <div className="max-w-2xl mx-auto px-4 py-10 text-center text-black-300 text-bs">Carregando partida...</div>
   }
+
+  // Scoreboard-only mode: match not in Supabase, show only Riot API scoreboard
+  if (scoreboardOnly) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-6">
+        <button
+          aria-label="Voltar para a home"
+          onClick={() =>
+            window.history.length <= 2 || !location.state?.from
+              ? navigate("/")
+              : navigate(-1)
+          }
+          className="text-bxs text-black-300 hover:text-black-100 font-medium transition-colors flex items-center gap-1 mb-3"
+        >
+          ← Voltar
+        </button>
+
+        <div className="text-center mb-4">
+          <h2 className="text-lg font-bold text-black-100">Partida {matchId}</h2>
+          {scoreboard?.duration_min && (
+            <p className="text-bxs text-black-400">{Math.round(scoreboard.duration_min)} min</p>
+          )}
+        </div>
+
+        <div>
+          {scoreboardLoading ? (
+            <div className="space-y-1.5">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="h-9 shimmer-bg rounded" />
+              ))}
+            </div>
+          ) : !scoreboard ? (
+            <div className="rounded-lg border border-white/6 bg-black-800/60 px-4 py-6 text-center text-sm text-black-400">
+              Não foi possível carregar os dados desta partida.
+              <div className="flex items-center justify-center gap-3 mt-4">
+                <button
+                  onClick={() => { setScoreboardOnly(false); setRetryCount(c => c + 1) }}
+                  className="bg-black-700 border border-black-500 text-black-100 text-bxs font-bold px-4 py-2 rounded-md hover:bg-black-600 transition-colors"
+                >
+                  Tentar novamente
+                </button>
+                <button
+                  onClick={() => navigate("/")}
+                  className="text-blue-400 text-bxs font-bold hover:underline transition-colors"
+                >
+                  Ir para home
+                </button>
+              </div>
+            </div>
+          ) : (
+            <InlineScoreboard data={scoreboard} fallbackTag={fallbackTag} />
+          )}
+        </div>
+      </div>
+    )
+  }
+
   if (errorMatch) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-10 text-center">
