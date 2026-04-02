@@ -24,7 +24,7 @@ export default function DashboardScreen() {
         const mePayload = await fetchAuthMe(session.access_token)
         if (cancelled) return
         setMe(mePayload)
-        const samples = ["BR1_123", "BR1_124", "BR1_125"]
+        const samples = Array.isArray(mePayload?.matches_with_analysis) ? mePayload.matches_with_analysis : []
         const statuses = await fetchAuthorizedCoachingStatus(samples, session.access_token)
         if (!cancelled) setStatusMap(statuses || {})
       } catch (err) {

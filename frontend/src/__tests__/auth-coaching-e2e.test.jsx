@@ -50,6 +50,7 @@ describe("login_to_coaching_protected_flow", () => {
       email: "user@test.com",
       analyses_consumed: 2,
       analyses_performed: 5,
+      matches_with_analysis: ["BR1_123"],
     })
     fetchAuthorizedCoachingStatusMock.mockResolvedValue({
       BR1_123: { status: "ready", has_analysis: true },

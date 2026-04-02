@@ -49,6 +49,7 @@ describe("DashboardScreen", () => {
       email: "user@test.com",
       analyses_consumed: 3,
       analyses_performed: 9,
+      matches_with_analysis: ["BR1_123", "BR1_124"],
     })
     fetchAuthorizedCoachingStatusMock.mockResolvedValue({
       BR1_123: { status: "ready", has_analysis: true },
@@ -94,6 +95,7 @@ describe("DashboardScreen", () => {
       email: "user@test.com",
       analyses_consumed: 0,
       analyses_performed: 0,
+      matches_with_analysis: [],
     })
     fetchAuthorizedCoachingStatusMock.mockResolvedValue({})
     logoutMock.mockResolvedValue(undefined)
