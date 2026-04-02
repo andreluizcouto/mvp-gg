@@ -51,8 +51,11 @@ ctk.set_appearance_mode("dark")
 # Constantes
 BACKEND_URL = os.environ.get("BACKEND_URL", "https://lol-coach-backend-z4b7.onrender.com")
 # Nunca embuta o segredo do app local no binario.
-LOCAL_APP_TOKEN = (os.environ.get("LOCAL_APP_TOKEN") or os.environ.get("APP_TOKEN") or "").strip()
+LOCAL_APP_TOKEN = (os.environ.get("LOCAL_APP_TOKEN") or "").strip()
 POLL_INTERVAL = 10  # segundos entre checks de status
+UPLOAD_MAX_RETRIES = 3
+UPLOAD_RETRY_BASE_SECONDS = 2
+POLL_MAX_ATTEMPTS = 60
 
 
 def _build_auth_headers() -> dict[str, str] | None:
@@ -65,7 +68,7 @@ async def _upload(session: LiveCoachSession, tray: TrayIcon) -> str | None:
     """Envia dados da partida ao backend. Retorna riot_id ou None em caso de falha."""
     headers = _build_auth_headers()
     if not headers:
-        logger.error("LOCAL_APP_TOKEN/APP_TOKEN nao configurado no CoachApp. Configure o .env antes de enviar uploads.")
+        logger.error("LOCAL_APP_TOKEN nao configurado no CoachApp. Configure o .env antes de enviar uploads.")
         return None
 
     payload = session.get_postgame_payload()
@@ -103,42 +106,48 @@ async def _upload(session: LiveCoachSession, tray: TrayIcon) -> str | None:
     except Exception:
         logger.warning("Warmup falhou - tentando upload mesmo assim...")
 
-    try:
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            resp = await client.post(
-                f"{BACKEND_URL}/local/upload",
-                json=body,
-                headers=headers,
-            )
-            if resp.status_code == 401:
-                logger.error("Upload rejeitado: LOCAL_APP_TOKEN invalido ou ausente (401 Unauthorized)")
-                return None
-            if resp.status_code == 500:
-                logger.error("Erro no servidor backend (500): %s", resp.text)
-                return None
-            resp.raise_for_status()
-            logger.info("Upload aceito: %s", resp.json())
-            return riot_id
-    except httpx.ConnectError:
-        logger.error("Nao conseguiu conectar ao backend - servidor pode estar dormindo (Render cold start)")
-        return None
-    except httpx.TimeoutException:
-        logger.error("Timeout ao enviar upload (90s) - servidor pode estar sobrecarregado")
-        return None
-    except Exception as e:
-        logger.error("Erro no upload: %s", e)
-        return None
+    for attempt in range(1, UPLOAD_MAX_RETRIES + 1):
+        try:
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                resp = await client.post(
+                    f"{BACKEND_URL}/local/upload",
+                    json=body,
+                    headers=headers,
+                )
+                if resp.status_code == 401:
+                    logger.error("Upload rejeitado: LOCAL_APP_TOKEN invalido ou ausente (401 Unauthorized)")
+                    return None
+                if resp.status_code == 429:
+                    logger.warning("Upload limitado por rate-limit (429). Tentativa %s/%s", attempt, UPLOAD_MAX_RETRIES)
+                elif resp.status_code >= 500:
+                    logger.warning("Erro temporario no backend (%s): %s", resp.status_code, resp.text)
+                else:
+                    resp.raise_for_status()
+                    logger.info("Upload aceito: %s", resp.json())
+                    return riot_id
+        except httpx.ConnectError:
+            logger.warning("Falha de conexao no upload (tentativa %s/%s)", attempt, UPLOAD_MAX_RETRIES)
+        except httpx.TimeoutException:
+            logger.warning("Timeout no upload (tentativa %s/%s)", attempt, UPLOAD_MAX_RETRIES)
+        except Exception as e:
+            logger.error("Erro nao recuperavel no upload: %s", e)
+            return None
+        if attempt < UPLOAD_MAX_RETRIES:
+            await asyncio.sleep(UPLOAD_RETRY_BASE_SECONDS * attempt)
+
+    logger.error("Upload falhou apos %s tentativas.", UPLOAD_MAX_RETRIES)
+    return None
 
 
 async def _poll_status(riot_id: str, tray: TrayIcon) -> None:
     """Faz polling ate analise estar pronta, entao muda icone para verde."""
     headers = _build_auth_headers()
     if not headers:
-        logger.error("Polling abortado: LOCAL_APP_TOKEN/APP_TOKEN nao configurado.")
+        logger.error("Polling abortado: LOCAL_APP_TOKEN nao configurado.")
         return
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        for attempt in range(60):  # maximo 10 minutos (60 * 10s)
+        for attempt in range(POLL_MAX_ATTEMPTS):  # maximo 10 minutos (60 * 10s)
             await asyncio.sleep(POLL_INTERVAL)
             try:
                 resp = await client.get(
@@ -146,11 +155,22 @@ async def _poll_status(riot_id: str, tray: TrayIcon) -> None:
                     params={"riot_id": riot_id},
                     headers=headers,
                 )
+                if resp.status_code == 401:
+                    logger.error("Polling rejeitado: token local invalido (401).")
+                    tray.set_state("waiting")
+                    return
+                if resp.status_code == 429:
+                    logger.warning("Polling limitado por rate-limit (429).")
+                    continue
                 data = resp.json()
-                logger.info("[poll %s/60] riot_id=%s status=%s", attempt + 1, riot_id, data)
+                logger.info("[poll %s/%s] riot_id=%s status=%s", attempt + 1, POLL_MAX_ATTEMPTS, riot_id, data)
                 if data.get("ready"):
                     logger.info("Analise pronta! match_id=%s", data.get("match_id"))
                     tray.set_state("ready")
+                    return
+                if data.get("status") == "failed":
+                    logger.error("Analise terminou com falha: %s", data.get("error", "erro desconhecido"))
+                    tray.set_state("waiting")
                     return
             except Exception as e:
                 logger.debug("Erro ao checar status: %s", e)

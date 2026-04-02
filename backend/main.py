@@ -194,6 +194,7 @@ if RIOT_KEY and RIOT_KEY.startswith("RGAPI-"):
 # ── Local app jobs (in-memory) ────────────────────────────
 # riot_id → match_id (None enquanto processando)
 _local_jobs: dict[str, str | None] = {}
+_local_job_states: dict[str, dict[str, str]] = {}
 
 _upload_counts: dict[str, list] = {}  # riot_id → [timestamps]
 _public_read_hits: dict[str, list[float]] = {}  # scope:ip -> [timestamps]
@@ -1805,6 +1806,7 @@ async def local_upload(body: LocalUploadRequest, request: Request):
 
     # Marca job como em processamento
     _local_jobs[riot_id] = None
+    _local_job_states[riot_id] = {"state": "pending", "error": ""}
 
     # Dispara processamento em background
     asyncio.create_task(_process_local_upload(riot_id, body.events, match_id, body.player_map))
@@ -1970,6 +1972,7 @@ async def _process_local_upload(riot_id: str, events: list[LocalEventUpload], cl
             if not match_id.startswith("local_") and not await _is_ranked_match(match_id):
                 logger.info(f"Partida ignorada (não ranqueada): {match_id}")
                 _local_jobs.pop(riot_id, None)
+                _local_job_states[riot_id] = {"state": "failed", "error": "Partida não ranqueada."}
                 return
         else:
             logger.info(f"🔧 DEBUG_MODE ativo — processando qualquer tipo de partida")
@@ -2049,6 +2052,7 @@ async def _process_local_upload(riot_id: str, events: list[LocalEventUpload], cl
                 pipeline_status,
             )
             _local_jobs[riot_id] = match_id
+            _local_job_states[riot_id] = {"state": "pending", "error": ""}
             return
 
         pending_local = await get_pending_local_evidence(match_id, riot_id)
@@ -2081,9 +2085,11 @@ async def _process_local_upload(riot_id: str, events: list[LocalEventUpload], cl
         )
 
         _local_jobs[riot_id] = match_id
+        _local_job_states[riot_id] = {"state": "ready", "error": ""}
     except Exception as e:
         logger.error(f"Erro em _process_local_upload: {e}")
         _local_jobs.pop(riot_id, None)
+        _local_job_states[riot_id] = {"state": "failed", "error": str(e)[:200]}
     finally:
         if prints_dir:
             shutil.rmtree(prints_dir, ignore_errors=True)
@@ -2097,7 +2103,12 @@ async def local_status(riot_id: str, request: Request):
 
     match_id = _local_jobs.get(riot_id)
     if match_id is None:
-        return {"ready": False, "status": "pending"}
+        job_state = _local_job_states.get(riot_id, {"state": "pending", "error": ""})
+        return {
+            "ready": False,
+            "status": "failed" if job_state.get("state") == "failed" else "pending",
+            "error": job_state.get("error", "") if job_state.get("state") == "failed" else "",
+        }
 
     # Verifica se já está no Supabase
     analysis = await get_coaching_analysis(match_id, riot_id=riot_id)
@@ -2110,7 +2121,12 @@ async def local_status(riot_id: str, request: Request):
 
     if analysis:
         _local_jobs.pop(riot_id, None)
+        _local_job_states[riot_id] = {"state": "ready", "error": ""}
         return {"ready": True, "status": status, "match_id": match_id}
+
+    if status == "failed":
+        _local_job_states[riot_id] = {"state": "failed", "error": "Falha no processamento da análise."}
+        return {"ready": False, "status": "failed", "match_id": match_id, "error": "Falha no processamento da análise."}
 
     return {"ready": status == "ready", "status": status, "match_id": match_id}
 
