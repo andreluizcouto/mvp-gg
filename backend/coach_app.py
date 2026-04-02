@@ -327,8 +327,46 @@ def main() -> None:
     # Track current player's riot_id for profile link
     _current_riot_id = {"value": ""}
 
+    def _try_get_lcu_riot_id() -> str:
+        """Try LCU API (client open, no game needed) for current summoner riot_id."""
+        import subprocess
+        try:
+            # Find LeagueClientUx.exe and parse --app-port and --remoting-auth-token
+            result = subprocess.run(
+                ["wmic", "process", "where", "name='LeagueClientUx.exe'",
+                 "get", "CommandLine", "/value"],
+                capture_output=True, text=True, timeout=3,
+            )
+            cmdline = result.stdout
+            if not cmdline or "LeagueClientUx" not in cmdline:
+                return ""
+
+            port = ""
+            token = ""
+            for part in cmdline.split():
+                if part.startswith("--app-port="):
+                    port = part.split("=", 1)[1].strip('"')
+                elif part.startswith("--remoting-auth-token="):
+                    token = part.split("=", 1)[1].strip('"')
+
+            if not port or not token:
+                return ""
+
+            import httpx as _httpx
+            with _httpx.Client(verify=False, timeout=2.0, auth=("riot", token)) as c:
+                resp = c.get(f"https://127.0.0.1:{port}/lol-summoner/v1/current-summoner")
+                if resp.status_code == 200:
+                    data = resp.json()
+                    name = data.get("gameName", "")
+                    tag = data.get("tagLine", "")
+                    if name and tag:
+                        return f"{name}#{tag}"
+        except Exception:
+            pass
+        return ""
+
     def _try_get_live_riot_id() -> str:
-        """Quick sync check of Live Client API for current player riot_id."""
+        """Quick sync check of Live Client API (in-game only) for current player riot_id."""
         try:
             import httpx as _httpx
             with _httpx.Client(verify=False, timeout=1.5) as c:
@@ -344,8 +382,8 @@ def main() -> None:
         import webbrowser
 
         def _do_open():
-            # Try live client first, then cached riot_id, then homepage
-            rid = _try_get_live_riot_id() or _current_riot_id["value"]
+            # Priority: in-game API → LCU client API → cached riot_id → homepage
+            rid = _try_get_live_riot_id() or _try_get_lcu_riot_id() or _current_riot_id["value"]
             if rid and "#" in rid:
                 name, tag = rid.split("#", 1)
                 app.after(0, lambda: webbrowser.open(f"{SITE_URL}/summoner/{name}/{tag}"))
