@@ -20,7 +20,7 @@ This roadmap improves an already working brownfield prototype into a trustworthy
 ### v1.1 — MVPApp Desktop GUI
 
 - [x] **Phase 7: Threading Foundation + EventBus** - restructure main() for three-thread model with thread-safe communication and config locking
-- [ ] **Phase 8: GUI Shell + Tray Integration** - dark-themed window that coexists with system tray (hide-on-close, double-click restore)
+- [x] **Phase 8: GUI Shell + Tray Integration** - dark-themed window that coexists with system tray (hide-on-close, double-click restore)
 - [ ] **Phase 9: Content Panels — Status, How-It-Works, Settings** - informational and configuration panels inside the window shell
 - [ ] **Phase 10: Activity Log + Event Bridge** - real-time color-coded event feed bridged from asyncio to GUI
 - [ ] **Phase 11: Build Configuration + Validation** - PyInstaller bundles CustomTkinter into a distributable .exe
@@ -211,7 +211,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 7. Threading Foundation + EventBus | 2/2 | Complete   | 2026-04-01 |
-| 8. GUI Shell + Tray Integration | 0/2 | Not started | - |
+| 8. GUI Shell + Tray Integration | 2/2 | Complete | 2026-04-02 |
 | 9. Content Panels — Status, How-It-Works, Settings | 0/? | Not started | - |
 | 10. Activity Log + Event Bridge | 0/? | Not started | - |
 | 11. Build Configuration + Validation | 0/? | Not started | - |
