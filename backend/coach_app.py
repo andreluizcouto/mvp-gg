@@ -327,14 +327,32 @@ def main() -> None:
     # Track current player's riot_id for profile link
     _current_riot_id = {"value": ""}
 
+    def _try_get_live_riot_id() -> str:
+        """Quick sync check of Live Client API for current player riot_id."""
+        try:
+            import httpx as _httpx
+            with _httpx.Client(verify=False, timeout=1.5) as c:
+                resp = c.get("https://127.0.0.1:2999/liveclientdata/activeplayer")
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data.get("riotId") or data.get("summonerName", "")
+        except Exception:
+            pass
+        return ""
+
     def _open_analysis():
         import webbrowser
-        rid = _current_riot_id["value"]
-        if rid and "#" in rid:
-            name, tag = rid.split("#", 1)
-            webbrowser.open(f"{SITE_URL}/summoner/{name}/{tag}")
-        else:
-            webbrowser.open(SITE_URL)
+
+        def _do_open():
+            # Try live client first, then cached riot_id, then homepage
+            rid = _try_get_live_riot_id() or _current_riot_id["value"]
+            if rid and "#" in rid:
+                name, tag = rid.split("#", 1)
+                app.after(0, lambda: webbrowser.open(f"{SITE_URL}/summoner/{name}/{tag}"))
+            else:
+                app.after(0, lambda: webbrowser.open(SITE_URL))
+
+        threading.Thread(target=_do_open, daemon=True).start()
 
     _btn_analysis = ctk.CTkButton(
         _btns_frame, text="🔍  Ver análise", command=_open_analysis,
