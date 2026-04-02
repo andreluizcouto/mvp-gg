@@ -24,6 +24,7 @@ This roadmap improves an already working brownfield prototype into a trustworthy
 - [ ] **Phase 9: Content Panels — Status, How-It-Works, Settings** - informational and configuration panels inside the window shell
 - [ ] **Phase 10: Activity Log + Event Bridge** - real-time color-coded event feed bridged from asyncio to GUI
 - [ ] **Phase 11: Build Configuration + Validation** - PyInstaller bundles CustomTkinter into a distributable .exe
+- [x] **Phase 12: Login + Access Control for Monetization** - implementar autenticação e autorização forte no MVP.gg para liberar análises de IA apenas para usuários autorizados (completed 2026-04-02)
 
 ## Phase Details
 
@@ -118,8 +119,6 @@ Plans:
 - [ ] 06-01: Finalize trust signals, failure-state presentation, and public-facing polish
 - [ ] 06-02: Verify launch-readiness against the product promise and current roadmap
 
----
-
 ## v1.1 — MVPApp Desktop GUI
 
 ### Overview
@@ -169,7 +168,13 @@ Plans:
   3. User can toggle minimap position between left and right, and the setting persists across app restarts
   4. User can see the minimap size option with a "recommended for AI accuracy" label on the large setting
   5. Window auto-hides when the app enters recording state to prevent minimap capture interference
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [x] 12-01-PLAN.md — Auth/entitlement/usage data contracts and persistence foundation
+- [x] 12-02-PLAN.md — Backend login/token refresh/revocation and IA route authorization guards
+- [x] 12-03-PLAN.md — Web login + protected dashboard with analyzed matches and usage counters
+- [x] 12-04-PLAN.md — Desktop auth integration, failure-safe analysis delivery, and release verification gate
 **UI hint**: yes
 
 ### Phase 10: Activity Log + Event Bridge
@@ -191,6 +196,18 @@ Plans:
   1. PyInstaller produces a working .exe that launches the full GUI (dark theme, all panels, activity log) without import errors or crashes
   2. Built .exe includes CustomTkinter assets (fonts, themes) and renders with modern dark styling — not raw tkinter gray widgets
   3. Built .exe runs correctly on a clean Windows machine without Python installed
+**Plans**: TBD
+
+### Phase 12: Login + Access Control for Monetization
+**Goal**: Implementar login/autorização com controle forte para permitir análises de IA apenas para contas e licenças válidas
+**Depends on**: Phase 11
+**Requirements**: [AUTH-01, AUTH-02, BILL-01, BILL-02]
+**Success Criteria** (what must be TRUE):
+  1. Usuário desktop e web conseguem autenticar de forma segura (sessão/token curto e revogável)
+  2. Endpoints de IA exigem autorização válida vinculada ao usuário/assinatura
+  3. Usuário sem acesso ativo recebe bloqueio consistente e mensagem clara (sem vazar dados sensíveis)
+  4. Chaves sensíveis permanecem exclusivamente no backend; cliente usa apenas credenciais temporárias
+  5. Existe trilha de auditoria para tentativas de uso indevido (rate-limit + logs de acesso)
 **Plans**: TBD
 
 ## Progress
@@ -215,3 +232,4 @@ Plans:
 | 9. Content Panels — Status, How-It-Works, Settings | 0/? | Not started | - |
 | 10. Activity Log + Event Bridge | 0/? | Not started | - |
 | 11. Build Configuration + Validation | 0/? | Not started | - |
+| 12. Login + Access Control for Monetization | 4/4 | Complete   | 2026-04-02 |

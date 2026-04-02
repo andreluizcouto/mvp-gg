@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: — MVPApp Desktop GUI
 status: executing
-stopped_at: Phase 8 planned — ready for execution
-last_updated: "2026-04-02T07:35:56.357Z"
+stopped_at: Completed 12-04-PLAN.md
+last_updated: "2026-04-02T13:50:10.174Z"
 last_activity: 2026-04-02
 progress:
   total_phases: 6
@@ -51,6 +51,12 @@ Recent decisions affecting current work:
 - [Phase 07-01]: EventBus uses queue.Queue (stdlib) — no external dependency needed
 - [Phase 07-01]: POLL_INTERVAL_MS=100ms for sub-200ms GUI latency
 - [Phase 07-01]: RLock (not Lock) for config enables re-entrant acquisition in update_config
+- [Phase 12-login-access-control-monetization]: Backend now resolves owned matches via user_identities mapping and fail-closed coaching access.
+- [Phase 12-login-access-control-monetization]: Dashboard status queries use /auth/me matches_with_analysis only.
+
+### Roadmap Evolution
+
+- Phase 12 added: Login + Access Control for Monetization
 
 ### Pending Todos
 
@@ -71,6 +77,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-02
-Stopped at: Phase 8 planned — ready for execution
-Resume file: .planning/phases/08-gui-shell-tray-integration/08-01-PLAN.md
+Last session: 2026-04-02T13:50:10.170Z
+Stopped at: Completed 12-04-PLAN.md
+Resume file: None
