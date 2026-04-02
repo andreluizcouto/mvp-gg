@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import logging
+import hashlib
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any, Optional
 
 from supabase import create_async_client
+from schemas_auth import AuthSessionRecord, UserEntitlementRecord
 from settings import SUPABASE_URL, SUPABASE_KEY
 
 logger = logging.getLogger(__name__)
@@ -14,6 +17,9 @@ logger = logging.getLogger(__name__)
 _client = None
 _pending_local_evidence_store: dict[tuple[str, str], dict[str, Any]] = {}
 _pipeline_snapshot_store: dict[tuple[str, str], dict[str, Any]] = {}
+_auth_session_store: dict[str, dict[str, Any]] = {}
+_entitlement_store: dict[str, dict[str, Any]] = {}
+_usage_operation_store: set[tuple[str, str]] = set()
 _SAFE_EXTERNAL_STATUSES = {"ready", "pending", "insufficient_data", "failed"}
 _legacy_pipeline_snapshot_schema_warned = False
 PIPELINE_SNAPSHOT_COLUMNS = "pipeline_snapshot,external_status,coaching_analysis,feedback_geral"
@@ -240,6 +246,107 @@ def _as_text(value: Any) -> str:
     if hasattr(value, "value"):
         return str(getattr(value, "value")).strip().lower()
     return str(value or "").strip().lower()
+
+
+def hash_auth_token(token: str) -> str:
+    """Hash de token para persistencia segura (nunca armazenar token bruto)."""
+
+    return hashlib.sha256((token or "").encode("utf-8")).hexdigest()
+
+
+def _constant_time_hash_match(candidate_hash: str, stored_hash: str) -> bool:
+    return bool(candidate_hash) and bool(stored_hash) and secrets.compare_digest(candidate_hash, stored_hash)
+
+
+async def save_auth_session(
+    *,
+    user_id: str,
+    session_id: str,
+    access_token: str,
+    refresh_token: str,
+    access_token_expires_at: datetime,
+    refresh_token_expires_at: datetime,
+) -> AuthSessionRecord:
+    """Persiste sessao autenticada armazenando somente hashes dos tokens."""
+
+    record = AuthSessionRecord(
+        user_id=user_id,
+        session_id=session_id,
+        access_token_hash=hash_auth_token(access_token),
+        refresh_token_hash=hash_auth_token(refresh_token),
+        access_token_expires_at=access_token_expires_at,
+        refresh_token_expires_at=refresh_token_expires_at,
+        revoked_at=None,
+    )
+    _auth_session_store[session_id] = record.model_dump()
+    return record
+
+
+async def get_active_session_by_hash(token_hash: str, *, token_type: str = "access") -> Optional[AuthSessionRecord]:
+    """Retorna sessao ativa por hash de token (access/refresh), se existir."""
+
+    now = _utc_now()
+    hash_field = "access_token_hash" if token_type == "access" else "refresh_token_hash"
+    expiry_field = "access_token_expires_at" if token_type == "access" else "refresh_token_expires_at"
+    for payload in _auth_session_store.values():
+        if payload.get("revoked_at") is not None:
+            continue
+        expires_at = payload.get(expiry_field)
+        if not isinstance(expires_at, datetime) or expires_at <= now:
+            continue
+        stored_hash = str(payload.get(hash_field, ""))
+        if _constant_time_hash_match(token_hash, stored_hash):
+            return AuthSessionRecord(**payload)
+    return None
+
+
+async def revoke_session(session_id: str) -> bool:
+    """Revoga sessao sem apagar trilha historica."""
+
+    payload = _auth_session_store.get(session_id)
+    if not payload:
+        return False
+    payload["revoked_at"] = _utc_now()
+    _auth_session_store[session_id] = payload
+    return True
+
+
+async def get_entitlement(user_id: str) -> UserEntitlementRecord:
+    """Retorna entitlement atual do usuario, inicializando default quando ausente."""
+
+    payload = _entitlement_store.get(user_id)
+    if not payload:
+        entitlement = UserEntitlementRecord(user_id=user_id, plan_tier="free", analysis_quota=0, analyses_consumed=0, analyses_performed=0, active=True)
+        _entitlement_store[user_id] = entitlement.model_dump()
+        return entitlement
+    return UserEntitlementRecord(**payload)
+
+
+async def increment_usage_counter(
+    *,
+    user_id: str,
+    operation_id: str,
+    analyses_consumed_delta: int = 0,
+    analyses_performed_delta: int = 0,
+) -> UserEntitlementRecord:
+    """Incrementa contadores de uso de forma idempotente por operation_id."""
+
+    entitlement = await get_entitlement(user_id)
+    op_key = (user_id, operation_id)
+    if op_key in _usage_operation_store:
+        return entitlement
+
+    entitlement = UserEntitlementRecord(
+        user_id=entitlement.user_id,
+        plan_tier=entitlement.plan_tier,
+        analysis_quota=entitlement.analysis_quota,
+        analyses_consumed=max(0, entitlement.analyses_consumed + max(0, analyses_consumed_delta)),
+        analyses_performed=max(0, entitlement.analyses_performed + max(0, analyses_performed_delta)),
+        active=entitlement.active,
+    )
+    _entitlement_store[user_id] = entitlement.model_dump()
+    _usage_operation_store.add(op_key)
+    return entitlement
 
 
 def _normalize_reason_codes(raw: Any) -> list[str]:
