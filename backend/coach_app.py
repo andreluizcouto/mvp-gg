@@ -323,15 +323,6 @@ def main() -> None:
         _m_logo = ctk.CTkImage(light_image=_logo_pil, dark_image=_logo_pil, size=(120, 80))
         ctk.CTkLabel(_main_frame, text="", image=_m_logo).pack(pady=(10, 2))
 
-    # Nick section — clickable profile link (packed directly, no extra frame)
-    _nick_btn = ctk.CTkButton(
-        _main_frame, text="",
-        font=ctk.CTkFont(size=14, weight="bold"),
-        fg_color="gray20", hover_color="gray25", text_color="#4ade80",
-        height=32, corner_radius=8,
-        command=lambda: _open_profile(),
-    )
-
     def _open_profile():
         import webbrowser
         rid = _current_riot_id["value"]
@@ -430,11 +421,21 @@ def main() -> None:
         else:
             webbrowser.open(SITE_URL)
 
-    ctk.CTkButton(
+    _btn_analysis = ctk.CTkButton(
         _btns_frame, text="🔍  Ver análise", command=_open_analysis,
         font=ctk.CTkFont(size=14), height=40,
         fg_color="#4a9ed4", hover_color="#3a8ec4",
-    ).pack(fill="x", pady=4)
+    )
+    _btn_analysis.pack(fill="x", pady=4)
+
+    # Nick button — clickable profile link (packed dynamically before _btn_analysis)
+    _nick_btn = ctk.CTkButton(
+        _btns_frame, text="",
+        font=ctk.CTkFont(size=14, weight="bold"),
+        fg_color="gray20", hover_color="gray25", text_color="#4ade80",
+        height=32, corner_radius=8,
+        command=lambda: _open_profile(),
+    )
 
     _btn_quit = ctk.CTkButton(
         _btns_frame, text="Sair", command=lambda: None,
@@ -491,7 +492,7 @@ def main() -> None:
         _current_riot_id["value"] = riot_id
         if riot_id:
             _nick_btn.configure(text=f"🎮  {riot_id}  →")
-            _nick_btn.pack(before=_status_frame, padx=60, pady=(2, 2), fill="x")
+            _nick_btn.pack(before=_btn_analysis, fill="x", pady=(0, 4))
 
         _main_frame.pack(fill="both", expand=True)
 
@@ -582,7 +583,7 @@ def main() -> None:
             # Update nick button if it was empty
             app.after(0, lambda: _nick_btn.configure(text=f"🎮  {rid}  →"))
             if not _nick_btn.winfo_ismapped():
-                app.after(0, lambda: _nick_btn.pack(pady=(0, 5)))
+                app.after(0, lambda: _nick_btn.pack(before=_btn_analysis, fill="x", pady=(0, 4)))
         app.after(0, lambda: _update_status_ui(state, detail))
 
     event_bus.subscribe(EventType.STATE_CHANGE, _on_state_event)
