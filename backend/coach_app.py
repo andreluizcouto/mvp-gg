@@ -24,10 +24,10 @@ import httpx
 
 import customtkinter as ctk
 from PIL import Image, ImageTk
-from app_config import get_config
+from app_config import get_config, update_config
 from event_bus import EventBus, EventType, Event
 from live_coach import LiveCoachSession
-from tray_icon import TrayIcon
+from tray_icon import TrayIcon, _STATUS_LABELS, _COLORS, SITE_URL
 
 # Logging para arquivo (console=False no .exe nao mostra nada)
 _log_file = os.path.join(_BASE_DIR, "coach_app.log")
@@ -221,20 +221,146 @@ def main() -> None:
         app.iconphoto(True, _icon_photo)
         app._icon_ref = _icon_photo  # prevent GC
 
-    # 3. Logo branding in window
+    # 3. Logo branding — small at top
     if os.path.exists(_LOGO_PATH):
         _logo_pil = Image.open(_LOGO_PATH)
-        _logo_ctk = ctk.CTkImage(light_image=_logo_pil, dark_image=_logo_pil, size=(280, 187))
+        _logo_ctk = ctk.CTkImage(light_image=_logo_pil, dark_image=_logo_pil, size=(140, 93))
         _logo_label = ctk.CTkLabel(app, text="", image=_logo_ctk)
-        _logo_label.pack(pady=(30, 10))
+        _logo_label.pack(pady=(20, 5))
 
-    # 4. Center on screen
+    # 4. Status section
+    _status_frame = ctk.CTkFrame(app, fg_color="transparent")
+    _status_frame.pack(pady=(10, 5))
+
+    _status_dot = ctk.CTkLabel(
+        _status_frame, text="●", font=ctk.CTkFont(size=18),
+        text_color="#787878", width=24,
+    )
+    _status_dot.pack(side="left", padx=(0, 6))
+
+    _status_label = ctk.CTkLabel(
+        _status_frame, text="Aguardando LoL...",
+        font=ctk.CTkFont(size=16, weight="bold"),
+    )
+    _status_label.pack(side="left")
+
+    def _update_status_ui(state: str, detail: str = ""):
+        """Update status dot and label. MUST run on main thread."""
+        label = _STATUS_LABELS.get(state, state)
+        if detail:
+            label = f"{label} ({detail})"
+        color = _COLORS.get(state, (120, 120, 120, 255))
+        hex_color = "#{:02x}{:02x}{:02x}".format(color[0], color[1], color[2])
+        _status_dot.configure(text_color=hex_color)
+        _status_label.configure(text=label)
+
+    # 5. Separator
+    ctk.CTkFrame(app, height=2, fg_color="gray30").pack(fill="x", padx=30, pady=(15, 15))
+
+    # 6. Options section — mirrors tray menu
+    _opts_frame = ctk.CTkFrame(app, fg_color="transparent")
+    _opts_frame.pack(fill="x", padx=40)
+
+    cfg = get_config()
+
+    _minimap_left_var = ctk.BooleanVar(value=cfg.get("minimap_left", False))
+    _minimap_large_var = ctk.BooleanVar(value=cfg.get("minimap_large", False))
+
+    def _on_toggle_left():
+        update_config("minimap_left", _minimap_left_var.get())
+
+    def _on_toggle_large():
+        update_config("minimap_large", _minimap_large_var.get())
+
+    _sw_left = ctk.CTkSwitch(
+        _opts_frame, text="Minimapa à esquerda",
+        variable=_minimap_left_var, command=_on_toggle_left,
+        font=ctk.CTkFont(size=14),
+    )
+    _sw_left.pack(anchor="w", pady=8)
+
+    _sw_large = ctk.CTkSwitch(
+        _opts_frame, text="Minimapa grande",
+        variable=_minimap_large_var, command=_on_toggle_large,
+        font=ctk.CTkFont(size=14),
+    )
+    _sw_large.pack(anchor="w", pady=8)
+
+    # 7. Separator
+    ctk.CTkFrame(app, height=2, fg_color="gray30").pack(fill="x", padx=30, pady=(15, 15))
+
+    # 8. Action buttons
+    _btns_frame = ctk.CTkFrame(app, fg_color="transparent")
+    _btns_frame.pack(fill="x", padx=40)
+
+    def _open_analysis():
+        import webbrowser
+        webbrowser.open(SITE_URL)
+
+    _btn_analysis = ctk.CTkButton(
+        _btns_frame, text="🔍  Ver análise", command=_open_analysis,
+        font=ctk.CTkFont(size=14), height=40,
+        fg_color="#4a9ed4", hover_color="#3a8ec4",
+    )
+    _btn_analysis.pack(fill="x", pady=6)
+
+    _btn_quit = ctk.CTkButton(
+        _btns_frame, text="Sair", command=lambda: None,
+        font=ctk.CTkFont(size=14), height=36,
+        fg_color="gray30", hover_color="#b03030", text_color="gray70",
+    )
+    _btn_quit.pack(fill="x", pady=(6, 0))
+
+    # "Como funciona" help button — at bottom of actions area
+    def _show_how_it_works():
+        _help_win = ctk.CTkToplevel(app)
+        _help_win.title("Como funciona")
+        _help_win.geometry("420x380")
+        _help_win.resizable(False, False)
+        _help_win.attributes("-topmost", True)
+        _help_win.grab_set()
+
+        _help_text = (
+            "🎮  Como funciona o MVPApp\n\n"
+            "1. Abra o League of Legends e inicie uma partida\n\n"
+            "2. O MVPApp detecta automaticamente o jogo\n"
+            "   e começa a gravar eventos (kills, mortes,\n"
+            "   objetivos) com prints do minimapa\n\n"
+            "3. Ao final da partida, os dados são enviados\n"
+            "   para a IA analisar seu desempenho\n\n"
+            "4. Clique em \"Ver análise\" para ver o coaching\n"
+            "   personalizado no site mvpgg.vercel.app\n\n"
+            "💡 Dica: Deixe o app aberto em segundo plano.\n"
+            "   Ele funciona no tray (bandeja do sistema)."
+        )
+
+        _lbl = ctk.CTkLabel(
+            _help_win, text=_help_text,
+            font=ctk.CTkFont(size=13), justify="left",
+            wraplength=380,
+        )
+        _lbl.pack(padx=20, pady=20, anchor="w")
+
+        ctk.CTkButton(
+            _help_win, text="Entendi!", command=_help_win.destroy,
+            font=ctk.CTkFont(size=14), height=36,
+        ).pack(pady=(0, 15))
+
+    _btn_help = ctk.CTkButton(
+        _btns_frame, text="❓  Como funciona", command=_show_how_it_works,
+        font=ctk.CTkFont(size=12), height=28,
+        fg_color="transparent", hover_color="gray25", text_color="gray50",
+        border_width=1, border_color="gray35",
+    )
+    _btn_help.pack(fill="x", pady=(20, 0))
+
+    # 9. Center on screen
     app.update_idletasks()
     sw, sh = app.winfo_screenwidth(), app.winfo_screenheight()
     w, h = app.winfo_width(), app.winfo_height()
     app.geometry(f"+{(sw - w) // 2}+{(sh - h) // 2}")
 
-    # 5. Show/restore window function
+    # 10. Show/restore window function
     def show_window():
         """Restore window to foreground. MUST run on main thread."""
         app.deiconify()
@@ -242,7 +368,7 @@ def main() -> None:
         app.focus_force()
         tray.remove_notification()
 
-    # 6. Close-to-tray handler
+    # 11. Close-to-tray handler
     def on_close_to_tray():
         """WM_DELETE_WINDOW — hide to tray with optional notification."""
         app.withdraw()
@@ -252,14 +378,17 @@ def main() -> None:
 
     app.protocol("WM_DELETE_WINDOW", on_close_to_tray)
 
-    # 7. Quit handler
+    # 12. Quit handler
     def on_quit():
         """Called from any thread to initiate clean shutdown."""
         logger.info("Encerrando CoachApp...")
         stop_event.set()
         app.after(0, app.quit)
 
-    # 8. Create and start tray on background thread
+    # Wire quit button now that on_quit is defined
+    _btn_quit.configure(command=on_quit)
+
+    # 13. Create and start tray on background thread
     def on_show_from_tray():
         """Called from pystray thread. Schedules show on main thread."""
         app.after(0, show_window)
@@ -267,7 +396,7 @@ def main() -> None:
     tray = TrayIcon(on_quit=on_quit, on_show=on_show_from_tray)
     tray.run_detached()
 
-    # 9. Start asyncio loop on daemon thread
+    # 14. Start asyncio loop on daemon thread
     async_thread = threading.Thread(
         target=_run_async_loop,
         args=(tray, stop_event, event_bus),
@@ -275,13 +404,21 @@ def main() -> None:
     )
     async_thread.start()
 
-    # 10. Start EventBus polling (bridges queue → main thread)
+    # 15. EventBus listener — update window status when state changes
+    def _on_state_event(event: Event):
+        state = event.data.get("state", "waiting")
+        detail = event.data.get("champion", "")
+        app.after(0, lambda: _update_status_ui(state, detail))
+
+    event_bus.subscribe(EventType.STATE_CHANGE, _on_state_event)
+
+    # 16. Start EventBus polling (bridges queue → main thread)
     event_bus.start_polling(app)
 
-    # 11. Enter main loop (blocks until app.quit())
+    # 17. Enter main loop (blocks until app.quit())
     app.mainloop()
 
-    # 12. Cleanup after mainloop exits
+    # 18. Cleanup after mainloop exits
     tray.stop()
     async_thread.join(timeout=5.0)
     try:
