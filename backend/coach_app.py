@@ -491,7 +491,7 @@ def main() -> None:
         _current_riot_id["value"] = riot_id
         if riot_id:
             _nick_btn.configure(text=f"🎮  {riot_id}  →")
-            _nick_btn.pack(padx=60, pady=(2, 2), fill="x")
+            _nick_btn.pack(before=_status_frame, padx=60, pady=(2, 2), fill="x")
 
         _main_frame.pack(fill="both", expand=True)
 
