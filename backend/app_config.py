@@ -11,6 +11,7 @@ import threading
 _DEFAULTS = {
     "minimap_left":  False,
     "minimap_large": False,
+    "hide_tray_notification": False,
 }
 
 # Module-level lock — shared by ALL callers across all threads
@@ -37,6 +38,7 @@ def get_config(config_dir: str | None = None) -> dict:
             return {
                 "minimap_left":  bool(data.get("minimap_left",  _DEFAULTS["minimap_left"])),
                 "minimap_large": bool(data.get("minimap_large", _DEFAULTS["minimap_large"])),
+                "hide_tray_notification": bool(data.get("hide_tray_notification", _DEFAULTS["hide_tray_notification"])),
             }
         except (json.JSONDecodeError, OSError):
             return dict(_DEFAULTS)
