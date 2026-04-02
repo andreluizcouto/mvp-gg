@@ -20,6 +20,8 @@ _pipeline_snapshot_store: dict[tuple[str, str], dict[str, Any]] = {}
 _auth_session_store: dict[str, dict[str, Any]] = {}
 _entitlement_store: dict[str, dict[str, Any]] = {}
 _usage_operation_store: set[tuple[str, str]] = set()
+_users_store_by_email: dict[str, dict[str, Any]] = {}
+_users_store_by_id: dict[str, dict[str, Any]] = {}
 _SAFE_EXTERNAL_STATUSES = {"ready", "pending", "insufficient_data", "failed"}
 _legacy_pipeline_snapshot_schema_warned = False
 PIPELINE_SNAPSHOT_COLUMNS = "pipeline_snapshot,external_status,coaching_analysis,feedback_geral"
@@ -282,6 +284,26 @@ async def save_auth_session(
     return record
 
 
+async def upsert_auth_user(*, user_id: str, email: str, password_hash: str) -> dict[str, Any]:
+    normalized_email = email.strip().lower()
+    payload = {
+        "id": user_id,
+        "email": normalized_email,
+        "password_hash": password_hash,
+    }
+    _users_store_by_email[normalized_email] = payload
+    _users_store_by_id[user_id] = payload
+    return dict(payload)
+
+
+async def get_auth_user_by_email(email: str) -> Optional[dict[str, Any]]:
+    return dict(_users_store_by_email[email.strip().lower()]) if email.strip().lower() in _users_store_by_email else None
+
+
+async def get_auth_user_by_id(user_id: str) -> Optional[dict[str, Any]]:
+    return dict(_users_store_by_id[user_id]) if user_id in _users_store_by_id else None
+
+
 async def get_active_session_by_hash(token_hash: str, *, token_type: str = "access") -> Optional[AuthSessionRecord]:
     """Retorna sessao ativa por hash de token (access/refresh), se existir."""
 
@@ -311,6 +333,16 @@ async def revoke_session(session_id: str) -> bool:
     return True
 
 
+async def revoke_session_by_token_hash(token_hash: str, *, token_type: str = "refresh") -> bool:
+    hash_field = "refresh_token_hash" if token_type == "refresh" else "access_token_hash"
+    for session_id, payload in _auth_session_store.items():
+        if _constant_time_hash_match(token_hash, str(payload.get(hash_field, ""))):
+            payload["revoked_at"] = _utc_now()
+            _auth_session_store[session_id] = payload
+            return True
+    return False
+
+
 async def get_entitlement(user_id: str) -> UserEntitlementRecord:
     """Retorna entitlement atual do usuario, inicializando default quando ausente."""
 
@@ -320,6 +352,11 @@ async def get_entitlement(user_id: str) -> UserEntitlementRecord:
         _entitlement_store[user_id] = entitlement.model_dump()
         return entitlement
     return UserEntitlementRecord(**payload)
+
+
+async def save_entitlement(entitlement: UserEntitlementRecord) -> UserEntitlementRecord:
+    _entitlement_store[entitlement.user_id] = entitlement.model_dump()
+    return entitlement
 
 
 async def increment_usage_counter(

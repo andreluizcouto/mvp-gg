@@ -8,6 +8,7 @@ from typing import Optional
 import asyncio
 import base64
 import binascii
+import hmac
 import hashlib
 import httpx
 import ipaddress
@@ -21,6 +22,7 @@ import tempfile
 import time
 import uuid
 from urllib.parse import urlsplit
+from datetime import UTC, datetime, timedelta
 
 from contextlib import asynccontextmanager
 
@@ -39,6 +41,13 @@ from schemas import (
     AnalyzeRequest, InsightResponse, AnalyzeResponse,
     MatchHistoryItem, MatchHistoryResponse,
 )
+from schemas_auth import (
+    AuthLoginRequest,
+    AuthLoginResponse,
+    AuthLogoutRequest,
+    AuthMeResponse,
+    AuthRefreshRequest,
+)
 from settings import (
     RIOT_API_KEY as RIOT_KEY,
     GEMINI_API_KEY as GEMINI_KEY,
@@ -53,6 +62,9 @@ from settings import (
     REFRESH_RATE_LIMIT_WINDOW_SECONDS, REFRESH_RATE_LIMIT_MAX_REQUESTS,
     REDIS_URL, REDIS_RATE_LIMIT_PREFIX,
     EDGE_CLIENT_RATE_LIMIT_WINDOW_SECONDS, EDGE_CLIENT_RATE_LIMIT_MAX_REQUESTS, EDGE_CLIENT_ID_HEADERS,
+    JWT_SECRET, ACCESS_TOKEN_TTL_SECONDS, REFRESH_TOKEN_TTL_SECONDS,
+    AUTH_RATE_LIMIT_WINDOW_SECONDS, AUTH_RATE_LIMIT_MAX_REQUESTS,
+    AUTH_BOOTSTRAP_EMAIL, AUTH_BOOTSTRAP_PASSWORD, AUTH_BOOTSTRAP_PLAN_TIER, AUTH_BOOTSTRAP_ANALYSIS_QUOTA,
 )
 from db import (
     delete_pending_local_evidence,
@@ -61,8 +73,19 @@ from db import (
     get_pipeline_snapshot,
     get_supabase,
     save_coaching_analysis,
+    save_entitlement,
+    get_active_session_by_hash,
+    get_entitlement,
+    hash_auth_token,
+    increment_usage_counter,
+    revoke_session,
+    revoke_session_by_token_hash,
+    save_auth_session,
     save_pipeline_snapshot,
     save_pending_local_evidence,
+    upsert_auth_user,
+    get_auth_user_by_email,
+    get_auth_user_by_id,
 )
 
 DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
@@ -156,14 +179,14 @@ if not SUPABASE_URL:
     _missing.append("SUPABASE_URL")
 if not SUPABASE_KEY:
     _missing.append("SUPABASE_KEY")
-if not APP_TOKEN and not INTERNAL_BEARER_TOKEN:
-    _missing.append("APP_TOKEN ou INTERNAL_BEARER_TOKEN")
+if not INTERNAL_BEARER_TOKEN:
+    _missing.append("INTERNAL_BEARER_TOKEN")
+if not LOCAL_APP_TOKEN:
+    _missing.append("LOCAL_APP_TOKEN")
 if _missing:
     logger.warning(f"Variaveis de ambiente ausentes: {', '.join(_missing)}")
 if PUBLIC_READ_ONLY:
     logger.info("PUBLIC_READ_ONLY ativo: endpoints de IA exigem autenticacao interna.")
-if APP_TOKEN and not LOCAL_APP_TOKEN:
-    logger.warning("LOCAL_APP_TOKEN nao configurado: /local/* continua aceitando APP_TOKEN como fallback temporario.")
 if RIOT_KEY and RIOT_KEY.startswith("RGAPI-"):
     logger.warning("RIOT_API_KEY e uma chave de desenvolvimento (RGAPI-*) — expira a cada 24h!")
 
@@ -179,6 +202,9 @@ _local_upload_client_hits: dict[str, list[float]] = {}  # local-upload:ip -> [ti
 _redis_rate_limit_client = None
 _redis_fallback_warned = False
 _legacy_coaching_status_schema_warned = False
+_auth_rate_limit_hits: dict[str, list[float]] = {}
+_auth_access_index: dict[str, str] = {}
+_bootstrap_auth_seeded = False
 
 MATCH_ID_RE = re.compile(r"^[A-Za-z0-9_:-]{3,80}$")
 SAFE_TEMP_FRAGMENT_RE = re.compile(r"[^A-Za-z0-9_-]+")
@@ -603,15 +629,6 @@ async def _fetch_coaching_status_rows(sb, match_ids: list[str], riot_id: str = "
         return {row["match_id"]: row for row in (fallback.data or []) if row.get("match_id")}
 
 
-def _verify_app_token(request: Request) -> None:
-    """Lança 401 se o header X-App-Token estiver ausente ou incorreto."""
-    if not APP_TOKEN:
-        raise HTTPException(status_code=500, detail="APP_TOKEN não configurado no servidor.")
-    token = request.headers.get("X-App-Token", "")
-    if not secrets.compare_digest(token, APP_TOKEN):
-        raise HTTPException(status_code=401, detail="Token inválido.")
-
-
 def _verify_internal_bearer(request: Request) -> bool:
     """Retorna True se o bearer token interno for válido."""
     if not INTERNAL_BEARER_TOKEN:
@@ -624,20 +641,143 @@ def _verify_internal_bearer(request: Request) -> bool:
 
 
 def _require_internal_auth(request: Request) -> None:
-    """Aceita APP_TOKEN ou Authorization Bearer interno."""
-    if _verify_internal_bearer(request):
-        return
-    _verify_app_token(request)
+    """Aceita somente Authorization Bearer interno."""
+    if not INTERNAL_BEARER_TOKEN:
+        raise HTTPException(status_code=500, detail="INTERNAL_BEARER_TOKEN não configurado no servidor.")
+    if not _verify_internal_bearer(request):
+        raise HTTPException(status_code=401, detail="Bearer interno inválido.")
 
 
 def _require_local_app_auth(request: Request) -> None:
-    """Aceita apenas o token dedicado do app local; fallback para APP_TOKEN durante migração."""
-    expected = (LOCAL_APP_TOKEN or APP_TOKEN or "").strip()
+    """Aceita somente o token dedicado do app local."""
+    expected = (LOCAL_APP_TOKEN or "").strip()
     if not expected:
-        raise HTTPException(status_code=500, detail="LOCAL_APP_TOKEN/APP_TOKEN não configurado no servidor.")
-    token = request.headers.get("X-App-Token", "")
+        raise HTTPException(status_code=500, detail="LOCAL_APP_TOKEN não configurado no servidor.")
+    token = request.headers.get("X-App-Token", "").strip()
     if not secrets.compare_digest(token, expected):
         raise HTTPException(status_code=401, detail="Token do app local inválido.")
+
+
+def _hash_password(password: str) -> str:
+    return hashlib.sha256(f"{JWT_SECRET}:{password}".encode("utf-8")).hexdigest()
+
+
+def _verify_password(password: str, expected_hash: str) -> bool:
+    return hmac.compare_digest(_hash_password(password), expected_hash)
+
+
+def _generate_token(prefix: str) -> str:
+    return f"{prefix}_{secrets.token_urlsafe(32)}"
+
+
+def _token_expiry(seconds: int) -> datetime:
+    return datetime.now(UTC) + timedelta(seconds=max(1, seconds))
+
+
+async def _seed_auth_bootstrap_user() -> None:
+    global _bootstrap_auth_seeded
+    if _bootstrap_auth_seeded:
+        return
+    user = await get_auth_user_by_email(AUTH_BOOTSTRAP_EMAIL)
+    if user is None:
+        user_id = f"user_{hashlib.sha256(AUTH_BOOTSTRAP_EMAIL.encode('utf-8')).hexdigest()[:16]}"
+        await upsert_auth_user(
+            user_id=user_id,
+            email=AUTH_BOOTSTRAP_EMAIL,
+            password_hash=_hash_password(AUTH_BOOTSTRAP_PASSWORD),
+        )
+        ent = await get_entitlement(user_id)
+        ent = ent.model_copy(update={
+            "plan_tier": AUTH_BOOTSTRAP_PLAN_TIER or "pro",
+            "analysis_quota": max(0, AUTH_BOOTSTRAP_ANALYSIS_QUOTA),
+            "active": True,
+        })
+        await save_entitlement(ent.model_copy(update={}))
+    _bootstrap_auth_seeded = True
+
+
+def _auth_identity(request: Request, email: str = "") -> str:
+    base = email.strip().lower() or _client_ip(request)
+    return f"auth:{base}"
+
+
+def _check_auth_rate_limit(request: Request, *, email: str = "") -> None:
+    if AUTH_RATE_LIMIT_MAX_REQUESTS <= 0 or AUTH_RATE_LIMIT_WINDOW_SECONDS <= 0:
+        return
+    key = _auth_identity(request, email)
+    count = _local_rate_limit_hit(_auth_rate_limit_hits, key, AUTH_RATE_LIMIT_WINDOW_SECONDS)
+    if count > AUTH_RATE_LIMIT_MAX_REQUESTS:
+        raise HTTPException(status_code=429, detail="Muitas tentativas de autenticação. Tente novamente em instantes.")
+
+
+def _extract_bearer_token(request: Request) -> str:
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Autenticação obrigatória.")
+    token = auth[len("Bearer "):].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Autenticação obrigatória.")
+    return token
+
+
+async def _require_user_session(request: Request) -> tuple[dict, str]:
+    access_token = _extract_bearer_token(request)
+    token_hash = hash_auth_token(access_token)
+    session = await get_active_session_by_hash(token_hash, token_type="access")
+    if session is None:
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada.")
+    user = await get_auth_user_by_id(session.user_id)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Sessão inválida ou expirada.")
+    _auth_access_index[token_hash] = session.session_id
+    return user, session.session_id
+
+
+async def _require_entitlement(user_id: str) -> AuthMeResponse:
+    entitlement = await get_entitlement(user_id)
+    if not entitlement.active:
+        raise HTTPException(status_code=403, detail="Acesso negado para análises IA.")
+    if entitlement.analysis_quota > 0 and entitlement.analyses_consumed >= entitlement.analysis_quota:
+        raise HTTPException(status_code=403, detail="Acesso negado para análises IA.")
+    user = await get_auth_user_by_id(user_id)
+    return AuthMeResponse(
+        user_id=user_id,
+        email=(user or {}).get("email", ""),
+        plan_tier=entitlement.plan_tier,
+        analysis_quota=entitlement.analysis_quota,
+        analyses_consumed=entitlement.analyses_consumed,
+        analyses_performed=entitlement.analyses_performed,
+    )
+
+
+async def _build_login_response(*, user_id: str, email: str) -> AuthLoginResponse:
+    access_token = _generate_token("at")
+    refresh_token = _generate_token("rt")
+    session_id = f"sess_{secrets.token_hex(8)}"
+    access_expires_at = _token_expiry(ACCESS_TOKEN_TTL_SECONDS)
+    refresh_expires_at = _token_expiry(REFRESH_TOKEN_TTL_SECONDS)
+    await save_auth_session(
+        user_id=user_id,
+        session_id=session_id,
+        access_token=access_token,
+        refresh_token=refresh_token,
+        access_token_expires_at=access_expires_at,
+        refresh_token_expires_at=refresh_expires_at,
+    )
+    _auth_access_index[hash_auth_token(access_token)] = session_id
+    entitlement = await get_entitlement(user_id)
+    return AuthLoginResponse(
+        user_id=user_id,
+        session_id=session_id,
+        access_token=access_token,
+        refresh_token=refresh_token,
+        access_token_expires_at=access_expires_at,
+        refresh_token_expires_at=refresh_expires_at,
+        plan_tier=entitlement.plan_tier,
+        analysis_quota=entitlement.analysis_quota,
+        analyses_consumed=entitlement.analyses_consumed,
+        analyses_performed=entitlement.analyses_performed,
+    )
 
 
 def _validate_match_id(match_id: str) -> str:
@@ -747,11 +887,10 @@ async def _upload_coaching_to_render(match_id: str, puuid: str, analysis: str) -
     """Envia análise pos-game para o backend na nuvem."""
     if not analysis.strip():
         return
-    headers: dict[str, str] = {}
-    if INTERNAL_BEARER_TOKEN:
-        headers["Authorization"] = f"Bearer {INTERNAL_BEARER_TOKEN}"
-    elif APP_TOKEN:
-        headers["X-App-Token"] = APP_TOKEN
+    if not INTERNAL_BEARER_TOKEN:
+        logger.error("INTERNAL_BEARER_TOKEN ausente; upload de coaching para o backend remoto foi abortado.")
+        return
+    headers: dict[str, str] = {"Authorization": f"Bearer {INTERNAL_BEARER_TOKEN}"}
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
@@ -827,6 +966,49 @@ async def fetch_match_details(puuid: str, match_id: str, index: int, api_key: st
 @app.get("/")
 def root():
     return {"status": "ok", "message": "LoL Coach API v2.1 funcionando!"}
+
+
+@app.post("/auth/login", response_model=AuthLoginResponse)
+async def auth_login(body: AuthLoginRequest, request: Request):
+    await _seed_auth_bootstrap_user()
+    _check_auth_rate_limit(request, email=body.email)
+    user = await get_auth_user_by_email(body.email)
+    if not user or not _verify_password(body.password, user.get("password_hash", "")):
+        logger.warning("auth.login.failed req_id=%s email=%s", getattr(request.state, "request_id", "-"), body.email)
+        raise HTTPException(status_code=401, detail="Credenciais inválidas.")
+    logger.info("auth.login.success req_id=%s user_id=%s", getattr(request.state, "request_id", "-"), user["id"])
+    return await _build_login_response(user_id=user["id"], email=user["email"])
+
+
+@app.post("/auth/refresh", response_model=AuthLoginResponse)
+async def auth_refresh(body: AuthRefreshRequest, request: Request):
+    _check_auth_rate_limit(request)
+    refresh_hash = hash_auth_token(body.refresh_token)
+    session = await get_active_session_by_hash(refresh_hash, token_type="refresh")
+    if session is None:
+        logger.warning("auth.refresh.failed req_id=%s", getattr(request.state, "request_id", "-"))
+        raise HTTPException(status_code=401, detail="Refresh token inválido ou expirado.")
+    await revoke_session(session.session_id)
+    user = await get_auth_user_by_id(session.user_id)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Refresh token inválido ou expirado.")
+    logger.info("auth.refresh.success req_id=%s user_id=%s", getattr(request.state, "request_id", "-"), user["id"])
+    return await _build_login_response(user_id=user["id"], email=user["email"])
+
+
+@app.post("/auth/logout")
+async def auth_logout(body: AuthLogoutRequest, request: Request):
+    user, session_id = await _require_user_session(request)
+    await revoke_session(session_id)
+    await revoke_session_by_token_hash(hash_auth_token(body.refresh_token), token_type="refresh")
+    logger.info("auth.logout.success req_id=%s user_id=%s", getattr(request.state, "request_id", "-"), user["id"])
+    return {"status": "ok"}
+
+
+@app.get("/auth/me", response_model=AuthMeResponse)
+async def auth_me(request: Request):
+    user, _session_id = await _require_user_session(request)
+    return await _require_entitlement(user["id"])
 
 
 @app.get("/summoner/{game_name}/{tag_line}", response_model=MatchHistoryResponse)
@@ -1317,6 +1499,8 @@ async def coaching_status(ids: str, request: Request, riot_id: str = ""):
     Query param: ids=BR1_1,BR1_2,BR1_3&riot_id=nome#tag
     """
     await _check_public_limits(request, "coaching-status")
+    user, _session_id = await _require_user_session(request)
+    await _require_entitlement(user["id"])
     match_ids = _parse_match_ids(ids)
     if not match_ids:
         return {}
@@ -1395,6 +1579,8 @@ async def coaching_regenerate(match_id: str, request: Request, riot_id: str = ""
     """Bloqueia regeneracao no v1 para nao-pagantes com status explicito."""
 
     await _check_public_limits(request, "coaching-regenerate")
+    user, _session_id = await _require_user_session(request)
+    await _require_entitlement(user["id"])
     match_id = _validate_match_id(match_id)
     riot_id = _validate_riot_id(riot_id, required=REQUIRE_RIOT_ID_FOR_COACHING)
     await save_pipeline_snapshot(
@@ -1419,6 +1605,8 @@ async def coaching_regenerate(match_id: str, request: Request, riot_id: str = ""
 async def coaching_get(match_id: str, request: Request, riot_id: str = ""):
     """Retorna a análise de coaching para um match_id, se existir."""
     await _check_public_limits(request, "coaching-get")
+    user, _session_id = await _require_user_session(request)
+    await _require_entitlement(user["id"])
     match_id = _validate_match_id(match_id)
     riot_id = _validate_riot_id(riot_id, required=REQUIRE_RIOT_ID_FOR_COACHING)
     analysis = await get_coaching_analysis(match_id, riot_id=riot_id)
@@ -1647,6 +1835,50 @@ def _parse_game_time(time_str: str) -> float:
         return 0.0
 
 
+async def _build_match_context_for_local_upload(riot_id: str, match_id: str):
+    """Resolve Riot-backed context so local uploads can finish end-to-end."""
+
+    if not RIOT_KEY or not match_id or match_id.startswith("local_"):
+        return None
+    if "#" not in riot_id:
+        logger.warning("Nao foi possivel montar match_context: riot_id sem tag (%s)", riot_id)
+        return None
+
+    game_name, tag_line = riot_id.split("#", 1)
+    riot = RiotMatchClient(api_key=RIOT_KEY)
+
+    try:
+        summoner = await riot.get_summoner_by_name(game_name, tag_line)
+        if not summoner:
+            logger.warning("Nao foi possivel carregar summoner para upload local: %s", riot_id)
+            return None
+
+        match, timeline = await asyncio.gather(
+            riot.get_match(match_id),
+            riot.get_match_timeline(match_id),
+        )
+        if not match or not timeline:
+            logger.warning("Nao foi possivel carregar match/timeline para upload local: %s", match_id)
+            return None
+
+        rank = await riot.get_summoner_rank(summoner.summoner_id)
+        if rank in ("DEFAULT", "UNRANKED", None):
+            rank = "Unranked"
+
+        item_names = await get_item_names(match.game_version)
+        builder = ContextBuilder(target_puuid=summoner.puuid, rank=rank)
+        context = builder.build(match, timeline, item_names=item_names)
+        logger.info(
+            "Match context resolvido para upload local: riot_id=%s match_id=%s source=riot_plus_local",
+            context.player_riot_id,
+            match_id,
+        )
+        return context
+    except Exception as exc:
+        logger.warning("Falha ao montar match_context para upload local %s/%s: %s", riot_id, match_id, exc)
+        return None
+
+
 async def _is_ranked_match(match_id: str) -> bool:
     """Retorna True se a partida é Ranked Solo/Duo ou Ranked Flex."""
     if match_id.startswith("local_"):
@@ -1766,8 +1998,11 @@ async def _process_local_upload(riot_id: str, events: list[LocalEventUpload], cl
                 "assisters":  getattr(evt, "assisters", []),
             })
 
+        match_context = await _build_match_context_for_local_upload(riot_id, match_id)
+
         snapshot = build_analysis_evidence_bundle(
             riot_id=riot_id,
+            match_context=match_context,
             local_events=events,
             match_id=match_id,
             image_paths=image_paths,
@@ -1840,6 +2075,8 @@ async def _process_local_upload(riot_id: str, events: list[LocalEventUpload], cl
                 "reason_codes": [],
                 "external_status": "ready",
                 "has_analysis_text": True,
+                "source": snapshot.bundle.source.value,
+                "weak_signal": False,
             },
         )
 

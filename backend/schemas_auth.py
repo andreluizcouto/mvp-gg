@@ -33,6 +33,10 @@ class AuthRefreshRequest(StrictAuthModel):
     refresh_token: str = Field(min_length=32, max_length=1024)
 
 
+class AuthLogoutRequest(StrictAuthModel):
+    refresh_token: str = Field(min_length=32, max_length=1024)
+
+
 class AuthSessionRecord(StrictAuthModel):
     user_id: str
     session_id: str
@@ -57,3 +61,12 @@ class AnalysisUsageRecord(StrictAuthModel):
     operation_id: str = Field(min_length=8, max_length=128)
     analyses_consumed: int = Field(ge=0, default=0)
     analyses_performed: int = Field(ge=0, default=0)
+
+
+class AuthMeResponse(BaseModel):
+    user_id: str
+    email: str
+    plan_tier: str
+    analysis_quota: int
+    analyses_consumed: int
+    analyses_performed: int

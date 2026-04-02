@@ -2,6 +2,7 @@
 Configuracoes centralizadas - todas as env vars do projeto.
 """
 import os
+import secrets
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -57,6 +58,17 @@ MAX_MATCH_ID_LENGTH = int(os.getenv("MAX_MATCH_ID_LENGTH", "80"))
 MAX_RIOT_ID_LENGTH = int(os.getenv("MAX_RIOT_ID_LENGTH", "64"))
 MAX_EVENTS_PER_UPLOAD = int(os.getenv("MAX_EVENTS_PER_UPLOAD", "120"))
 MAX_MINIMAP_BASE64_LENGTH = int(os.getenv("MAX_MINIMAP_BASE64_LENGTH", "4000000"))
+
+# === Auth + Monetizacao ===
+JWT_SECRET = os.getenv("JWT_SECRET", secrets.token_hex(32)).strip()
+ACCESS_TOKEN_TTL_SECONDS = int(os.getenv("ACCESS_TOKEN_TTL_SECONDS", "900"))
+REFRESH_TOKEN_TTL_SECONDS = int(os.getenv("REFRESH_TOKEN_TTL_SECONDS", "604800"))
+AUTH_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("AUTH_RATE_LIMIT_WINDOW_SECONDS", "60"))
+AUTH_RATE_LIMIT_MAX_REQUESTS = int(os.getenv("AUTH_RATE_LIMIT_MAX_REQUESTS", "20"))
+AUTH_BOOTSTRAP_EMAIL = os.getenv("AUTH_BOOTSTRAP_EMAIL", "demo@mvp.gg").strip().lower()
+AUTH_BOOTSTRAP_PASSWORD = os.getenv("AUTH_BOOTSTRAP_PASSWORD", "demo-password-123")
+AUTH_BOOTSTRAP_PLAN_TIER = os.getenv("AUTH_BOOTSTRAP_PLAN_TIER", "pro").strip().lower()
+AUTH_BOOTSTRAP_ANALYSIS_QUOTA = int(os.getenv("AUTH_BOOTSTRAP_ANALYSIS_QUOTA", "200"))
 
 # === Webhooks ===
 MAKE_FEEDBACK_WEBHOOK_URL = os.getenv("MAKE_FEEDBACK_WEBHOOK_URL", "")
