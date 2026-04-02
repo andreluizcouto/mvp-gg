@@ -207,27 +207,28 @@ def _run_async_loop(tray: TrayIcon, stop_event: threading.Event, event_bus: Even
 
 def _try_get_lcu_riot_id() -> str:
     """Try LCU API (client open, no game needed) for current summoner riot_id."""
-    import subprocess
+    import subprocess, re
     try:
+        ps_cmd = (
+            "Get-CimInstance Win32_Process -Filter \"Name='LeagueClientUx.exe'\" "
+            "| Select-Object -ExpandProperty CommandLine"
+        )
         result = subprocess.run(
-            ["wmic", "process", "where", "name='LeagueClientUx.exe'",
-             "get", "CommandLine", "/value"],
-            capture_output=True, text=True, timeout=3,
+            ["powershell.exe", "-NoProfile", "-Command", ps_cmd],
+            capture_output=True, text=True, timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         cmdline = result.stdout
         if not cmdline or "LeagueClientUx" not in cmdline:
             return ""
 
-        port = ""
-        token = ""
-        for part in cmdline.split():
-            if part.startswith("--app-port="):
-                port = part.split("=", 1)[1].strip('"')
-            elif part.startswith("--remoting-auth-token="):
-                token = part.split("=", 1)[1].strip('"')
-
-        if not port or not token:
+        port_m = re.search(r"--app-port=(\d+)", cmdline)
+        token_m = re.search(r"--remoting-auth-token=([\w_-]+)", cmdline)
+        if not port_m or not token_m:
             return ""
+
+        port = port_m.group(1)
+        token = token_m.group(1)
 
         import httpx as _httpx
         with _httpx.Client(verify=False, timeout=2.0, auth=("riot", token)) as c:
@@ -241,6 +242,17 @@ def _try_get_lcu_riot_id() -> str:
     except Exception:
         pass
     return ""
+
+
+def _play_detect_sound():
+    """Play a short success sound when account is detected."""
+    try:
+        import winsound
+        # Two-tone ascending chime: short beep then higher beep
+        winsound.Beep(600, 150)
+        winsound.Beep(900, 200)
+    except Exception:
+        pass
 
 
 def main() -> None:
@@ -508,6 +520,8 @@ def main() -> None:
         )
         _detect_nick.configure(text=f"🎮  {riot_id}")
         _detect_nick.pack(pady=(10, 0))
+        # Play success chime in background thread
+        threading.Thread(target=_play_detect_sound, daemon=True).start()
         app.after(2500, lambda: _show_main_screen(riot_id))
 
     # Center on screen
