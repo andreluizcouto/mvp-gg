@@ -44,10 +44,11 @@ class TrayIcon:
     Use `set_state(state)` de qualquer thread para atualizar o icone e o menu.
     '''
 
-    def __init__(self, on_quit: Callable):
+    def __init__(self, on_quit: Callable, on_show: Callable | None = None):
         self._state = "waiting"
         self._detail = ""
         self._on_quit = on_quit
+        self._on_show = on_show
         self._icon: pystray.Icon | None = None
         self._lock = threading.Lock()
 
@@ -79,10 +80,32 @@ class TrayIcon:
         if self._icon:
             self._icon.stop()
 
+    def notify(self, message: str, title: str = "MVPApp") -> None:
+        """Show tray balloon notification. Thread-safe."""
+        if self._icon:
+            self._icon.notify(message, title)
+
+    def remove_notification(self) -> None:
+        """Remove any active tray notification."""
+        if self._icon:
+            self._icon.remove_notification()
+
     # -- Menu --
+
+    def _show_window(self, icon, item) -> None:
+        """Triggered by left-click (default action) or 'Abrir MVPApp' menu item."""
+        if self._on_show:
+            self._on_show()
 
     def _build_menu(self) -> pystray.Menu:
         return pystray.Menu(
+            pystray.MenuItem(
+                "Abrir MVPApp",
+                self._show_window,
+                default=True,
+                visible=True,
+            ),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 lambda item: _STATUS_LABELS.get(self._state, ""),
                 None,
