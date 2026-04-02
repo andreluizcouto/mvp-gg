@@ -22,6 +22,7 @@ _entitlement_store: dict[str, dict[str, Any]] = {}
 _usage_operation_store: set[tuple[str, str]] = set()
 _users_store_by_email: dict[str, dict[str, Any]] = {}
 _users_store_by_id: dict[str, dict[str, Any]] = {}
+_user_identity_store: dict[str, set[str]] = {}
 _SAFE_EXTERNAL_STATUSES = {"ready", "pending", "insufficient_data", "failed"}
 _legacy_pipeline_snapshot_schema_warned = False
 PIPELINE_SNAPSHOT_COLUMNS = "pipeline_snapshot,external_status,coaching_analysis,feedback_geral"
@@ -32,6 +33,10 @@ def _normalize_pending_key(match_id: str, riot_id: str) -> tuple[str, str]:
     """Normaliza a chave usada pelos caches locais do pipeline."""
 
     return (match_id.strip(), riot_id.strip().lower())
+
+
+def _normalize_riot_identity(riot_id: str) -> str:
+    return (riot_id or "").strip().lower()
 
 
 def _utc_now() -> datetime:
@@ -294,6 +299,117 @@ async def upsert_auth_user(*, user_id: str, email: str, password_hash: str) -> d
     _users_store_by_email[normalized_email] = payload
     _users_store_by_id[user_id] = payload
     return dict(payload)
+
+
+async def upsert_user_identity(*, user_id: str, riot_id: str) -> list[str]:
+    normalized = _normalize_riot_identity(riot_id)
+    if not normalized:
+        return []
+    identities = set(_user_identity_store.get(user_id, set()))
+    identities.add(normalized)
+    _user_identity_store[user_id] = identities
+    return sorted(identities)
+
+
+async def list_user_identities(user_id: str) -> list[str]:
+    return sorted(_user_identity_store.get(user_id, set()))
+
+
+def _match_exists_for_identity_locally(match_id: str, riot_id: str) -> bool:
+    key = _normalize_pending_key(match_id, riot_id)
+    return key in _pipeline_snapshot_store or key in _pending_local_evidence_store
+
+
+async def get_owned_match_identity_map(user_id: str, match_ids: list[str]) -> dict[str, str]:
+    """Retorna mapeamento match_id -> riot_id para partidas autorizadas ao usuario."""
+
+    identities = await list_user_identities(user_id)
+    if not identities or not match_ids:
+        return {}
+
+    id_set = set(identities)
+    mapping: dict[str, str] = {}
+
+    for match_id in match_ids:
+        for riot_id in identities:
+            if _match_exists_for_identity_locally(match_id, riot_id):
+                mapping[match_id] = riot_id
+                break
+
+    unresolved = [match_id for match_id in match_ids if match_id not in mapping]
+    if not unresolved or not SUPABASE_URL or not SUPABASE_KEY:
+        return mapping
+
+    try:
+        sb = await get_supabase()
+        if sb is None:
+            return mapping
+        response = (
+            await sb.table("ai_cache")
+            .select("match_id,riot_id")
+            .in_("match_id", unresolved)
+            .in_("riot_id", list(id_set))
+            .execute()
+        )
+        for row in (response.data or []):
+            match_id = str(row.get("match_id", "")).strip()
+            riot_id = _normalize_riot_identity(str(row.get("riot_id", "")))
+            if match_id and riot_id and riot_id in id_set and match_id not in mapping:
+                mapping[match_id] = riot_id
+    except Exception as exc:
+        logger.warning("Falha ao resolver ownership de partidas no Supabase: %s", exc)
+
+    return mapping
+
+
+async def list_owned_match_ids(user_id: str, *, limit: int = 100) -> list[str]:
+    """Lista partidas com analise disponivel vinculadas ao mapping user_id <-> riot_id."""
+
+    identities = await list_user_identities(user_id)
+    if not identities:
+        return []
+
+    results: list[str] = []
+    id_set = set(identities)
+
+    for (match_id, riot_id), snapshot in _pipeline_snapshot_store.items():
+        if riot_id in id_set and bool((snapshot or {}).get("has_analysis_text")) and match_id not in results:
+            results.append(match_id)
+            if len(results) >= limit:
+                return results[:limit]
+
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return results[:limit]
+
+    try:
+        sb = await get_supabase()
+        if sb is None:
+            return results[:limit]
+        response = (
+            await sb.table("ai_cache")
+            .select("match_id,riot_id,coaching_analysis,feedback_geral,pipeline_snapshot,external_status")
+            .in_("riot_id", identities)
+            .order("created_at", desc=True)
+            .limit(max(limit * 2, limit))
+            .execute()
+        )
+        for row in (response.data or []):
+            match_id = str(row.get("match_id", "")).strip()
+            if not match_id or match_id in results:
+                continue
+            has_analysis_text = bool(
+                (row.get("coaching_analysis") or "").strip()
+                or (row.get("feedback_geral") or "").strip()
+                or bool((row.get("pipeline_snapshot") or {}).get("has_analysis_text"))
+            )
+            if has_analysis_text:
+                results.append(match_id)
+            if len(results) >= limit:
+                break
+    except Exception as exc:
+        logger.warning("Falha ao listar partidas autorizadas do usuario %s: %s", user_id, exc)
+
+    return results[:limit]
 
 
 async def get_auth_user_by_email(email: str) -> Optional[dict[str, Any]]:

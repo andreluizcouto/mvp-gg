@@ -86,6 +86,9 @@ from db import (
     upsert_auth_user,
     get_auth_user_by_email,
     get_auth_user_by_id,
+    get_owned_match_identity_map,
+    list_owned_match_ids,
+    upsert_user_identity,
 )
 
 DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
@@ -249,8 +252,8 @@ MATCH_PUBLIC_COLUMNS_FALLBACK = ",".join([
     "allies",
     "puuid",
 ])
-COACHING_STATUS_COLUMNS = "match_id,coaching_analysis,feedback_geral,external_status,pipeline_snapshot"
-COACHING_STATUS_COLUMNS_FALLBACK = "match_id,coaching_analysis,feedback_geral"
+COACHING_STATUS_COLUMNS = "match_id,riot_id,coaching_analysis,feedback_geral,external_status,pipeline_snapshot"
+COACHING_STATUS_COLUMNS_FALLBACK = "match_id,riot_id,coaching_analysis,feedback_geral"
 SAFE_EXTERNAL_STATUSES = {"ready", "pending", "insufficient_data", "failed"}
 # Plan artifact marker: insufficient_data|Coach indisponivel
 UNAVAILABLE_COACHING_MESSAGE = "Coach indisponivel, baixe o app e jogue uma partida."
@@ -748,6 +751,7 @@ async def _require_entitlement(user_id: str) -> AuthMeResponse:
         analysis_quota=entitlement.analysis_quota,
         analyses_consumed=entitlement.analyses_consumed,
         analyses_performed=entitlement.analyses_performed,
+        matches_with_analysis=[],
     )
 
 
@@ -977,6 +981,7 @@ async def auth_login(body: AuthLoginRequest, request: Request):
     if not user or not _verify_password(body.password, user.get("password_hash", "")):
         logger.warning("auth.login.failed req_id=%s email=%s", getattr(request.state, "request_id", "-"), body.email)
         raise HTTPException(status_code=401, detail="Credenciais inválidas.")
+    await upsert_user_identity(user_id=user["id"], riot_id=user["email"])
     logger.info("auth.login.success req_id=%s user_id=%s", getattr(request.state, "request_id", "-"), user["id"])
     return await _build_login_response(user_id=user["id"], email=user["email"])
 
@@ -1009,7 +1014,14 @@ async def auth_logout(body: AuthLogoutRequest, request: Request):
 @app.get("/auth/me", response_model=AuthMeResponse)
 async def auth_me(request: Request):
     user, _session_id = await _require_user_session(request)
-    return await _require_entitlement(user["id"])
+    payload = await _require_entitlement(user["id"])
+    try:
+        await upsert_user_identity(user_id=user["id"], riot_id=user.get("email", ""))
+        match_ids = await list_owned_match_ids(user["id"], limit=100)
+        payload = payload.model_copy(update={"matches_with_analysis": match_ids})
+    except Exception:
+        pass
+    return payload
 
 
 @app.get("/summoner/{game_name}/{tag_line}", response_model=MatchHistoryResponse)
@@ -1505,7 +1517,20 @@ async def coaching_status(ids: str, request: Request, riot_id: str = ""):
     match_ids = _parse_match_ids(ids)
     if not match_ids:
         return {}
-    riot_id = _validate_riot_id(riot_id, required=REQUIRE_RIOT_ID_FOR_COACHING)
+    if riot_id:
+        riot_id = _validate_riot_id(riot_id, required=False)
+        await upsert_user_identity(user_id=user["id"], riot_id=riot_id)
+    ownership_map = await get_owned_match_identity_map(user["id"], match_ids)
+    if not ownership_map:
+        return {
+            mid: CoachingStatusResponse(
+                match_id=mid,
+                has_analysis=False,
+                status="insufficient_data",
+                message=UNAVAILABLE_COACHING_MESSAGE,
+            )
+            for mid in match_ids
+        }
     result: dict[str, CoachingStatusResponse] = {}
     rows_by_match: dict[str, dict] = {}
 
@@ -1513,12 +1538,23 @@ async def coaching_status(ids: str, request: Request, riot_id: str = ""):
         try:
             sb = await get_supabase()
             if sb is not None:
-                rows_by_match = await _fetch_coaching_status_rows(sb, match_ids, riot_id)
+                rows_by_match = await _fetch_coaching_status_rows(sb, match_ids, "")
         except Exception as e:
             logger.error(f"Erro ao buscar status batch de coaching: {e}")
 
     for mid in match_ids:
+        owner_riot_id = ownership_map.get(mid)
+        if not owner_riot_id:
+            result[mid] = CoachingStatusResponse(
+                match_id=mid,
+                has_analysis=False,
+                status="insufficient_data",
+                message=UNAVAILABLE_COACHING_MESSAGE,
+            )
+            continue
         row = rows_by_match.get(mid, {})
+        if row and str(row.get("riot_id", "")).strip().lower() != owner_riot_id.strip().lower():
+            row = {}
         has_analysis = bool(
             (row.get("coaching_analysis") or "").strip() or (row.get("feedback_geral") or "").strip()
         )
@@ -1528,9 +1564,9 @@ async def coaching_status(ids: str, request: Request, riot_id: str = ""):
             snapshot["external_status"] = row["external_status"]
 
         if snapshot is None:
-            snapshot = await get_pipeline_snapshot(mid, riot_id)
-        if snapshot is None and riot_id:
-            pending_local = await get_pending_local_evidence(mid, riot_id)
+            snapshot = await get_pipeline_snapshot(mid, owner_riot_id)
+        if snapshot is None and owner_riot_id:
+            pending_local = await get_pending_local_evidence(mid, owner_riot_id)
             if pending_local:
                 snapshot = {"status": "incomplete_evidence", "external_status": "pending"}
         if snapshot and snapshot.get("has_analysis_text"):
@@ -1609,12 +1645,24 @@ async def coaching_get(match_id: str, request: Request, riot_id: str = ""):
     user, _session_id = await _require_user_session(request)
     await _require_entitlement(user["id"])
     match_id = _validate_match_id(match_id)
-    riot_id = _validate_riot_id(riot_id, required=REQUIRE_RIOT_ID_FOR_COACHING)
-    analysis = await get_coaching_analysis(match_id, riot_id=riot_id)
-    snapshot = await get_pipeline_snapshot(match_id, riot_id)
+    if riot_id:
+        riot_id = _validate_riot_id(riot_id, required=False)
+        await upsert_user_identity(user_id=user["id"], riot_id=riot_id)
+    ownership_map = await get_owned_match_identity_map(user["id"], [match_id])
+    owner_riot_id = ownership_map.get(match_id)
+    if not owner_riot_id:
+        return CoachingAnalysisResponse(
+            match_id=match_id,
+            has_analysis=False,
+            status="insufficient_data",
+            analysis=None,
+            message=UNAVAILABLE_COACHING_MESSAGE,
+        )
+    analysis = await get_coaching_analysis(match_id, riot_id=owner_riot_id)
+    snapshot = await get_pipeline_snapshot(match_id, owner_riot_id)
     has_analysis = analysis is not None or bool((snapshot or {}).get("has_analysis_text"))
-    if snapshot is None and riot_id:
-        pending_local = await get_pending_local_evidence(match_id, riot_id)
+    if snapshot is None and owner_riot_id:
+        pending_local = await get_pending_local_evidence(match_id, owner_riot_id)
         if pending_local:
             snapshot = {"status": "incomplete_evidence", "external_status": "pending"}
 

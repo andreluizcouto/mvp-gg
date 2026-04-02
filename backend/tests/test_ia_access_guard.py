@@ -12,6 +12,7 @@ def _reset_auth_state(monkeypatch):
     db._usage_operation_store.clear()
     db._users_store_by_email.clear()
     db._users_store_by_id.clear()
+    db._user_identity_store.clear()
     main._auth_rate_limit_hits.clear()
     main._auth_access_index.clear()
     main._bootstrap_auth_seeded = False
@@ -51,6 +52,11 @@ def test_coaching_get_rejects_without_entitlement(monkeypatch):
 def test_coaching_get_returns_consistent_status_for_entitled_user(monkeypatch):
     client = TestClient(main.app)
     login = client.post("/auth/login", json={"email": "user@test.com", "password": "password-123"}).json()
+    db._pipeline_snapshot_store[("BR1_123", "user@test.com")] = {
+        "status": "pending",
+        "external_status": "pending",
+        "has_analysis_text": False,
+    }
 
     async def fake_get_analysis(_match_id: str, riot_id: str = ""):
         return None
@@ -66,3 +72,21 @@ def test_coaching_get_returns_consistent_status_for_entitled_user(monkeypatch):
     payload = response.json()
     assert payload["status"] in {"ready", "pending", "failed", "insufficient_data"}
     assert payload["status"] == "failed"
+
+
+def test_coaching_get_fail_closed_when_match_not_owned():
+    client = TestClient(main.app)
+    login = client.post("/auth/login", json={"email": "user@test.com", "password": "password-123"}).json()
+
+    db._pipeline_snapshot_store[("BR1_FOREIGN", "other@test.com")] = {
+        "status": "ready",
+        "external_status": "ready",
+        "has_analysis_text": True,
+    }
+
+    response = client.get("/coaching/BR1_FOREIGN", headers=_authz(login["access_token"]))
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "insufficient_data"
+    assert payload["has_analysis"] is False
+    assert payload["analysis"] is None

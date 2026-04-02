@@ -14,6 +14,7 @@ def _reset_auth_state(monkeypatch):
     db._usage_operation_store.clear()
     db._users_store_by_email.clear()
     db._users_store_by_id.clear()
+    db._user_identity_store.clear()
     main._auth_rate_limit_hits.clear()
     main._auth_access_index.clear()
     main._bootstrap_auth_seeded = False
@@ -77,3 +78,25 @@ def test_logout_revokes_session_and_protected_call_becomes_401():
     me_after = client.get("/auth/me", headers=_authz(login["access_token"]))
     assert me_after.status_code == 401
     assert me_after.json()["detail"] == "Sessão inválida ou expirada."
+
+
+def test_auth_me_lists_only_owned_matches_via_identity_mapping():
+    client = TestClient(main.app)
+    login = client.post("/auth/login", json={"email": "user@test.com", "password": "password-123"}).json()
+
+    user_id = login["user_id"]
+    db._pipeline_snapshot_store[("BR1_OWNED", "user@test.com")] = {
+        "status": "ready",
+        "external_status": "ready",
+        "has_analysis_text": True,
+    }
+    db._pipeline_snapshot_store[("BR1_FOREIGN", "other@test.com")] = {
+        "status": "ready",
+        "external_status": "ready",
+        "has_analysis_text": True,
+    }
+
+    payload = client.get("/auth/me", headers=_authz(login["access_token"])).json()
+    assert payload["user_id"] == user_id
+    assert "BR1_OWNED" in payload["matches_with_analysis"]
+    assert "BR1_FOREIGN" not in payload["matches_with_analysis"]
