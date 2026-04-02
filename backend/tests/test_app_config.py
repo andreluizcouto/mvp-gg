@@ -20,7 +20,7 @@ def test_get_config_returns_defaults_when_no_file(tmp_path, monkeypatch):
 
     from app_config import get_config
     cfg = get_config(config_dir=str(tmp_path))
-    assert cfg == {"minimap_left": False, "minimap_large": False}
+    assert cfg == {"minimap_left": False, "minimap_large": False, "hide_tray_notification": False}
 
 
 def test_save_and_reload_config(tmp_path):
@@ -47,7 +47,7 @@ def test_get_config_returns_defaults_for_corrupted_json(tmp_path):
     cfg_path.write_text("NOT_VALID_JSON{{{")
     from app_config import get_config
     cfg = get_config(config_dir=str(tmp_path))
-    assert cfg == {"minimap_left": False, "minimap_large": False}
+    assert cfg == {"minimap_left": False, "minimap_large": False, "hide_tray_notification": False}
 
 
 # ---------------------------------------------------------------------------
@@ -125,3 +125,15 @@ def test_rlock_allows_reentrance(tmp_path):
         cfg = get_config(config_dir=str(tmp_path))
 
     assert cfg["minimap_left"] is False
+
+
+def test_hide_tray_notification_roundtrip(tmp_path):
+    """hide_tray_notification persists through write → read cycle."""
+    from app_config import get_config, save_config, update_config
+
+    save_config({"minimap_left": False, "minimap_large": False}, config_dir=str(tmp_path))
+    result = update_config("hide_tray_notification", True, config_dir=str(tmp_path))
+    assert result["hide_tray_notification"] is True
+
+    cfg = get_config(config_dir=str(tmp_path))
+    assert cfg["hide_tray_notification"] is True
