@@ -259,15 +259,25 @@ async def _set_ai_cache(match_id: str, data: dict, riot_id: str = "") -> None:
         sb = await get_supabase()
         if sb is None:
             return
-        await sb.table("ai_cache").upsert(
-            {
-                "match_id": match_id,
-                "riot_id": riot_id,
-                "insights": data["insights"],
-                "feedback_geral": data["feedback_geral"],
-            },
-            on_conflict="match_id,riot_id",
-        ).execute()
+        payload = {
+            "match_id": match_id,
+            "riot_id": riot_id,
+            "insights": data["insights"],
+            "feedback_geral": data["feedback_geral"],
+        }
+        try:
+            await sb.table("ai_cache").upsert(
+                payload,
+                on_conflict="match_id,riot_id",
+            ).execute()
+        except Exception as exc:
+            if "duplicate key value violates unique constraint" in str(exc).lower() and "match_id" in str(exc).lower():
+                await sb.table("ai_cache").upsert(
+                    payload,
+                    on_conflict="match_id",
+                ).execute()
+            else:
+                raise
         logger.debug(f"Resposta salva no Supabase para {match_id}.")
     except Exception as e:
         logger.error(f"Erro ao salvar cache para {match_id}: {e}")

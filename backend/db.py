@@ -108,16 +108,27 @@ async def save_coaching_analysis(match_id: str, analysis: str, riot_id: str = ""
         if sb is None:
             logger.error("Cliente Supabase retornou None — analise NAO foi salva!")
             return
-        await sb.table("ai_cache").upsert(
-            {
-                "match_id": match_id,
-                "riot_id": riot_id,
-                "coaching_analysis": analysis,
-                "insights": [],
-                "feedback_geral": "",
-            },
-            on_conflict="match_id,riot_id",
-        ).execute()
+        payload = {
+            "match_id": match_id,
+            "riot_id": riot_id,
+            "coaching_analysis": analysis,
+            "insights": [],
+            "feedback_geral": "",
+        }
+        try:
+            await sb.table("ai_cache").upsert(
+                payload,
+                on_conflict="match_id,riot_id",
+            ).execute()
+        except Exception as exc:
+            # Compatibilidade com schemas legados onde PK/UNIQUE ainda é apenas match_id.
+            if "duplicate key value violates unique constraint" in str(exc).lower() and "match_id" in str(exc).lower():
+                await sb.table("ai_cache").upsert(
+                    payload,
+                    on_conflict="match_id",
+                ).execute()
+            else:
+                raise
         logger.info(f"Analise de coaching salva no Supabase para {match_id} / {riot_id}")
     except Exception as e:
         logger.error(f"Erro ao salvar coaching {match_id} no Supabase: {e}")

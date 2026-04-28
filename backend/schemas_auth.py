@@ -70,3 +70,4 @@ class AuthMeResponse(BaseModel):
     analysis_quota: int
     analyses_consumed: int
     analyses_performed: int
+    matches_with_analysis: list[str] = []

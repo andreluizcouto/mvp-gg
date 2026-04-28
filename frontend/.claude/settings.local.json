@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(npm install:*)",
-      "WebFetch(domain:lol-coach-backend-z4b7.onrender.com)"
-    ]
-  }
-}

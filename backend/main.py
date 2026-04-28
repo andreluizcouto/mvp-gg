@@ -55,6 +55,7 @@ from settings import (
     APP_TOKEN, INTERNAL_BEARER_TOKEN, LOCAL_APP_TOKEN, PUBLIC_READ_ONLY, RENDER_BACKEND_URL,
     CORS_ORIGINS, MAKE_FEEDBACK_WEBHOOK_URL, DOWNLOAD_APP_URL,
     DAILY_LIMIT, REQUIRE_HTTPS, TRUST_X_FORWARDED_PROTO,
+    ALLOW_NON_RANKED_MATCHES,
     REQUIRE_RIOT_ID_FOR_COACHING, MAX_IDS_PER_STATUS_QUERY,
     MAX_MATCH_ID_LENGTH, MAX_RIOT_ID_LENGTH,
     MAX_EVENTS_PER_UPLOAD, MAX_MINIMAP_BASE64_LENGTH,
@@ -2014,16 +2015,16 @@ async def _process_local_upload(riot_id: str, events: list[LocalEventUpload], cl
                 match_id = _validate_match_id(f"local_{_safe_temp_fragment(riot_id)}_{int(time.time())}")
             logger.warning(f"Usando match_id fallback: {match_id}")
 
-        # Filtra partidas não ranqueadas — só processa Ranked Solo/Duo e Flex
-        # DEBUG_MODE=true permite qualquer tipo de partida (bot, normal, etc.)
-        if not DEBUG_MODE:
-            if not match_id.startswith("local_") and not await _is_ranked_match(match_id):
-                logger.info(f"Partida ignorada (não ranqueada): {match_id}")
-                _local_jobs.pop(riot_id, None)
-                _local_job_states[riot_id] = {"state": "failed", "error": "Partida não ranqueada."}
-                return
-        else:
-            logger.info(f"🔧 DEBUG_MODE ativo — processando qualquer tipo de partida")
+        # Filtra partidas não ranqueadas — só processa Ranked Solo/Duo e Flex.
+        # Em ambiente de teste/local, ALLOW_NON_RANKED_MATCHES=true libera bot/custom/normal.
+        if DEBUG_MODE or ALLOW_NON_RANKED_MATCHES:
+            mode_label = "DEBUG_MODE" if DEBUG_MODE else "ALLOW_NON_RANKED_MATCHES"
+            logger.info(f"🔧 {mode_label} ativo — processando qualquer tipo de partida")
+        elif not match_id.startswith("local_") and not await _is_ranked_match(match_id):
+            logger.info(f"Partida ignorada (não ranqueada): {match_id}")
+            _local_jobs.pop(riot_id, None)
+            _local_job_states[riot_id] = {"state": "failed", "error": "Partida não ranqueada."}
+            return
 
         # Salva imagens temporariamente para análise
         prints_dir = _create_temp_upload_dir("local", match_id)
@@ -2068,7 +2069,17 @@ async def _process_local_upload(riot_id: str, events: list[LocalEventUpload], cl
             checkpoint=snapshot.latest_checkpoint,
             allow_degraded=False,
         )
-        if not analysis_gate.allows_progress():
+        allow_test_localhost_only = (
+            (DEBUG_MODE or ALLOW_NON_RANKED_MATCHES)
+            and snapshot.bundle.source is EvidenceSource.LOCALHOST_ONLY
+        )
+        if allow_test_localhost_only:
+            logger.info(
+                "🔧 TEST MODE: bypassing localhost_only analysis gate for match_id=%s",
+                match_id,
+            )
+
+        if not analysis_gate.allows_progress() and not allow_test_localhost_only:
             pipeline_status = "blocked"
             if snapshot.bundle.source is EvidenceSource.LOCALHOST_ONLY:
                 pipeline_status = "blocked"

@@ -54,14 +54,12 @@ def test_validate_match_id_rejects_path_traversal():
 
 def test_require_internal_auth_accepts_bearer(monkeypatch):
     monkeypatch.setattr(main, "INTERNAL_BEARER_TOKEN", "token-interno")
-    monkeypatch.setattr(main, "APP_TOKEN", "app-token")
     req = _make_request(headers={"Authorization": "Bearer token-interno"})
     main._require_internal_auth(req)
 
 
 def test_require_internal_auth_rejects_without_valid_token(monkeypatch):
     monkeypatch.setattr(main, "INTERNAL_BEARER_TOKEN", "token-interno")
-    monkeypatch.setattr(main, "APP_TOKEN", "app-token")
     req = _make_request(headers={"Authorization": "Bearer invalido"})
     with pytest.raises(HTTPException) as exc:
         main._require_internal_auth(req)
@@ -69,7 +67,7 @@ def test_require_internal_auth_rejects_without_valid_token(monkeypatch):
 
 
 def test_local_app_auth_uses_dedicated_token(monkeypatch):
-    monkeypatch.setattr(main, "APP_TOKEN", "internal-token")
+    monkeypatch.setattr(main, "INTERNAL_BEARER_TOKEN", "token-interno")
     monkeypatch.setattr(main, "LOCAL_APP_TOKEN", "local-token")
 
     req = _make_request(headers={"X-App-Token": "local-token"})
@@ -77,6 +75,14 @@ def test_local_app_auth_uses_dedicated_token(monkeypatch):
 
     with pytest.raises(HTTPException) as exc:
         main._require_internal_auth(req)
+    assert exc.value.status_code == 401
+
+
+def test_local_app_auth_rejects_non_local_token(monkeypatch):
+    monkeypatch.setattr(main, "LOCAL_APP_TOKEN", "local-token")
+    req = _make_request(headers={"X-App-Token": "other-token"})
+    with pytest.raises(HTTPException) as exc:
+        main._require_local_app_auth(req)
     assert exc.value.status_code == 401
 
 

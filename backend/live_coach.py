@@ -18,7 +18,7 @@ from minimap_capture import capture_minimap, get_screen_resolution, save_minimap
 logger = logging.getLogger(__name__)
 
 DEATH_POLL_INTERVAL = 0.3   # polling agressivo para morte (300ms)
-EVENT_POLL_TICKS = 3        # tick de eventos a cada N ticks de morte (~900ms)
+EVENT_POLL_TICKS = 1        # tick de eventos a cada N ticks de morte (~300ms)
 
 
 # ──────────────────────────────────────────
@@ -319,7 +319,7 @@ class LiveCoachSession:
                 self._player_team = team
 
     # ──────────────────────────────────────────
-    # Tick de eventos (800ms efetivo)
+    # Tick de eventos (300ms efetivo)
     # ──────────────────────────────────────────
 
     async def _tick_events(self, client: LiveGameClient):

@@ -3,6 +3,10 @@
 PyInstaller spec para o CoachApp.
 Gera uma pasta one-dir em dist/CoachApp/.
 """
+import customtkinter
+import os
+
+ctk_path = os.path.dirname(customtkinter.__file__)
 
 block_cipher = None
 
@@ -11,8 +15,9 @@ a = Analysis(
     pathex=["."],
     binaries=[],
     datas=[
-        # config.json padrão incluído (usuário pode sobrescrever)
         ("config.json", "."),
+        ("../mvpgg.png", "."),
+        (ctk_path, "customtkinter"),
     ],
     hiddenimports=[
         "pystray._win32",
@@ -26,13 +31,16 @@ a = Analysis(
         "live_coach",
         "live_game_client",
         "minimap_capture",
+        "event_bus",
         "settings",
         "db",
         "schemas",
+        "customtkinter",
+        "winsound",
     ],
     hookspath=[],
     runtime_hooks=[],
-    excludes=["tkinter", "matplotlib", "numpy", "scipy"],
+    excludes=["matplotlib", "numpy", "scipy"],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -46,7 +54,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="CoachApp",
+    name="MVPApp",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -64,5 +72,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="CoachApp",
+    name="MVPApp",
 )

@@ -9,6 +9,7 @@ import re
 from typing import Optional
 
 from analysis_contracts import AnalysisEvidenceBundle
+from settings import GEMINI_MODEL, GEMINI_FALLBACK_MODELS
 
 logger = logging.getLogger(__name__)
 
@@ -163,12 +164,22 @@ async def _call_gemini_batch(images: list[bytes], prompt: str) -> str:
     for img_bytes in images:
         parts.append(types.Part.from_bytes(data=img_bytes, mime_type="image/png"))
     parts.append(types.Part.from_text(text=prompt))
-
-    response = await client.aio.models.generate_content(
-        model="gemini-2.5-flash-preview-04-17",
-        contents=[types.Content(parts=parts)],
-    )
-    return response.text
+    models_to_try = [GEMINI_MODEL] + [m for m in GEMINI_FALLBACK_MODELS if m and m != GEMINI_MODEL]
+    last_error: Exception | None = None
+    for model_name in models_to_try:
+        try:
+            response = await client.aio.models.generate_content(
+                model=model_name,
+                contents=[types.Content(parts=parts)],
+            )
+            logger.info("Gemini model usado no post-game: %s", model_name)
+            return response.text
+        except Exception as exc:
+            last_error = exc
+            logger.warning("Gemini modelo %s falhou: %s", model_name, exc)
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("Nenhum modelo Gemini configurado para tentativa.")
 
 
 async def _call_haiku_batch(images: list[bytes], prompt: str) -> str:

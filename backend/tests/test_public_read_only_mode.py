@@ -33,8 +33,7 @@ def _disable_redis(monkeypatch):
 
 
 def test_ai_endpoints_block_without_token(monkeypatch):
-    monkeypatch.setattr(main, "APP_TOKEN", "app-token")
-    monkeypatch.setattr(main, "INTERNAL_BEARER_TOKEN", "")
+    monkeypatch.setattr(main, "INTERNAL_BEARER_TOKEN", "bearer-interno")
     client = TestClient(main.app)
 
     analyze = client.post(
@@ -79,8 +78,7 @@ def test_analyze_allows_valid_internal_token(monkeypatch):
         )
         return {"context": context, "insights": [], "feedback": "ok"}
 
-    monkeypatch.setattr(main, "APP_TOKEN", "app-token")
-    monkeypatch.setattr(main, "INTERNAL_BEARER_TOKEN", "")
+    monkeypatch.setattr(main, "INTERNAL_BEARER_TOKEN", "bearer-interno")
     monkeypatch.setattr(main, "RIOT_KEY", "riot-key")
     monkeypatch.setattr(main, "GEMINI_KEY", "gemini-key")
     monkeypatch.setattr(main, "RiotMatchClient", lambda api_key: FakeRiotClient())
@@ -90,7 +88,7 @@ def test_analyze_allows_valid_internal_token(monkeypatch):
     client = TestClient(main.app)
     resp = client.post(
         "/analyze",
-        headers={"X-App-Token": "app-token"},
+        headers={"Authorization": "Bearer bearer-interno"},
         json={"game_name": "tester", "tag_line": "BR1", "match_index": 0},
     )
     assert resp.status_code == 200
@@ -98,7 +96,7 @@ def test_analyze_allows_valid_internal_token(monkeypatch):
     assert data["match_id"] == "BR1_123"
     assert data["player"] == "tester#BR1"
 
-    feedback = client.post("/feedback", headers={"X-App-Token": "app-token"}, json=_feedback_payload())
+    feedback = client.post("/feedback", headers={"Authorization": "Bearer bearer-interno"}, json=_feedback_payload())
     assert feedback.status_code == 200
 
 
@@ -501,8 +499,7 @@ def _patch_analyze_pipeline_dependencies(monkeypatch, match_id: str):
     async def fake_set_ai_cache(*_args, **_kwargs):
         return None
 
-    monkeypatch.setattr(main, "APP_TOKEN", "app-token")
-    monkeypatch.setattr(main, "INTERNAL_BEARER_TOKEN", "")
+    monkeypatch.setattr(main, "INTERNAL_BEARER_TOKEN", "bearer-interno")
     monkeypatch.setattr(main, "RIOT_KEY", "riot-key")
     monkeypatch.setattr(main, "GEMINI_KEY", "gemini-key")
     monkeypatch.setattr(main, "RiotMatchClient", lambda api_key: FakeRiotClient(match_id))
@@ -536,7 +533,7 @@ def test_analyze_route_uses_shared_evidence_pipeline(monkeypatch):
     client = TestClient(main.app)
     resp = client.post(
         "/analyze",
-        headers={"X-App-Token": "app-token"},
+        headers={"Authorization": "Bearer bearer-interno"},
         json={"game_name": "tester", "tag_line": "BR1", "match_index": 0},
     )
 
@@ -550,6 +547,9 @@ def test_analyze_route_uses_shared_evidence_pipeline(monkeypatch):
 def test_local_upload_uses_shared_evidence_pipeline(monkeypatch):
     captured = {}
     saved_pending = {}
+
+    async def fake_build_match_context(*_args, **_kwargs):
+        return None
 
     def fake_create_task(coro):
         captured["coro"] = coro
@@ -576,6 +576,7 @@ def test_local_upload_uses_shared_evidence_pipeline(monkeypatch):
     monkeypatch.setattr(main, "APP_TOKEN", "internal-token")
     monkeypatch.setattr(main.asyncio, "create_task", fake_create_task)
     monkeypatch.setattr(main, "_is_ranked_match", fake_is_ranked_match)
+    monkeypatch.setattr(main, "_build_match_context_for_local_upload", fake_build_match_context)
     monkeypatch.setattr(main, "save_pending_local_evidence", fake_save_pending)
     monkeypatch.setattr(main, "analyze_postgame", forbidden_analyze_postgame)
 
@@ -606,6 +607,85 @@ def test_local_upload_uses_shared_evidence_pipeline(monkeypatch):
     assert saved_pending["payload"]["riot_id"] == "tester#BR1"
     assert saved_pending["payload"]["source"] == "localhost_only"
     assert main._local_jobs["tester#BR1"] == "BR1_PIPE_2"
+    main._local_jobs.pop("tester#BR1", None)
+
+
+def test_local_upload_resolves_riot_context_and_saves_analysis(monkeypatch):
+    saved = {}
+    snapshots = []
+    deleted = []
+
+    async def fake_is_ranked_match(_match_id):
+        return True
+
+    async def fake_build_match_context(_riot_id, match_id):
+        assert match_id == "BR1_PIPE_4"
+        return context_builder.MatchContext(
+            match_id=match_id,
+            player_riot_id="tester#BR1",
+            player_champion="Ahri",
+            role="MIDDLE",
+            win=True,
+            duration_min=29.5,
+            kda="9/2/7",
+            cs_per_min=7.8,
+            vision_score=23,
+            kill_participation_pct=61.0,
+            damage_share_pct=27.5,
+            time_dead_pct=3.1,
+            rank="GOLD IV",
+        )
+
+    async def fake_analyze_postgame(events, image_paths, bundle=None, match_context=""):
+        assert bundle is not None
+        assert bundle.source.value == "riot_plus_local"
+        assert bundle.match_context is not None
+        assert len(events) == 1
+        assert len(image_paths) == 1
+        return "analise pronta"
+
+    async def fake_save_coaching_analysis(match_id, analysis, riot_id=""):
+        saved["match_id"] = match_id
+        saved["analysis"] = analysis
+        saved["riot_id"] = riot_id
+
+    async def fake_save_pipeline_snapshot(match_id, riot_id, snapshot):
+        snapshots.append((match_id, riot_id, snapshot))
+
+    async def fake_get_pending(_match_id, _riot_id):
+        return None
+
+    async def fake_delete_pending(match_id, riot_id):
+        deleted.append((match_id, riot_id))
+
+    monkeypatch.setattr(main, "_is_ranked_match", fake_is_ranked_match)
+    monkeypatch.setattr(main, "_build_match_context_for_local_upload", fake_build_match_context)
+    monkeypatch.setattr(main, "analyze_postgame", fake_analyze_postgame)
+    monkeypatch.setattr(main, "save_coaching_analysis", fake_save_coaching_analysis)
+    monkeypatch.setattr(main, "save_pipeline_snapshot", fake_save_pipeline_snapshot)
+    monkeypatch.setattr(main, "get_pending_local_evidence", fake_get_pending)
+    monkeypatch.setattr(main, "delete_pending_local_evidence", fake_delete_pending)
+
+    event = main.LocalEventUpload(
+        event_type="kill",
+        game_time="00:10",
+        champion="Ahri",
+        detail="test",
+        assisters=[],
+        minimap_base64="MDEyMzQ1Njc4OWFiY2RlZg==",
+    )
+
+    asyncio.run(main._process_local_upload("tester#BR1", [event], "BR1_PIPE_4", {"tester#BR1": "Ahri"}))
+
+    assert saved == {
+        "match_id": "BR1_PIPE_4",
+        "analysis": "analise pronta",
+        "riot_id": "tester#BR1",
+    }
+    assert snapshots[-1][2]["external_status"] == "ready"
+    assert snapshots[-1][2]["source"] == "riot_plus_local"
+    assert deleted == []
+    assert main._local_jobs["tester#BR1"] == "BR1_PIPE_4"
     main._local_jobs.pop("tester#BR1", None)
 
 
@@ -652,7 +732,7 @@ def test_riot_analysis_joins_pending_local_evidence(monkeypatch):
     client = TestClient(main.app)
     resp = client.post(
         "/analyze",
-        headers={"X-App-Token": "app-token"},
+        headers={"Authorization": "Bearer bearer-interno"},
         json={"game_name": "tester", "tag_line": "BR1", "match_index": 0},
     )
 

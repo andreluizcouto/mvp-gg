@@ -25,6 +25,11 @@ RIOT_API_KEY = os.getenv("RIOT_API_KEY", "")
 
 # === AI ===
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+GEMINI_FALLBACK_MODELS = _env_csv(
+    "GEMINI_FALLBACK_MODELS",
+    "gemini-1.5-flash-latest,gemini-1.5-flash-8b-latest",
+)
 
 # === Supabase ===
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
@@ -44,6 +49,7 @@ CORS_ORIGINS = _env_csv(
 REQUIRE_HTTPS = _env_bool("REQUIRE_HTTPS", default=ENVIRONMENT == "production")
 TRUST_X_FORWARDED_PROTO = _env_bool("TRUST_X_FORWARDED_PROTO", default=True)
 REQUIRE_RIOT_ID_FOR_COACHING = _env_bool("REQUIRE_RIOT_ID_FOR_COACHING", default=True)
+ALLOW_NON_RANKED_MATCHES = _env_bool("ALLOW_NON_RANKED_MATCHES", default=False)
 PUBLIC_READ_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("PUBLIC_READ_RATE_LIMIT_WINDOW_SECONDS", "60"))
 PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS = int(os.getenv("PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS", "60"))
 REFRESH_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("REFRESH_RATE_LIMIT_WINDOW_SECONDS", "120"))
