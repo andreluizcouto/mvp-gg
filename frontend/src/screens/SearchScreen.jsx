@@ -221,7 +221,7 @@ export default function SearchScreen() {
               <>
                 {elo !== DEFAULT_ELO && (
                   <p className="px-2 pb-1 text-bxs text-black-400">
-                    Montando a tier list de {eloLabel(elo)}… na primeira vez pode levar uns 30 segundos.
+                    Carregando a tier list de {eloLabel(elo)}…
                   </p>
                 )}
                 <SkeletonRows rows={6} className="h-12" />

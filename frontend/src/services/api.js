@@ -246,6 +246,28 @@ export async function fetchTierlistByElo(lane, elo) {
   return requestJson(`/meta/tierlist/elo?${params.toString()}`, { timeoutMs: 120000 })
 }
 
+// Snapshot pré-calculado pelo GitHub Actions a cada 12h (branch tierlist-data):
+// um arquivo por elo com as 5 rotas, servido como estático. Sem espera nenhuma.
+const SNAPSHOT_BASE = "https://raw.githubusercontent.com/andreluizcouto/mvp-gg/tierlist-data/elo"
+const ELO_ID_RE = /^[a-z_]{3,20}$/
+
+export async function fetchTierlistSnapshot(elo) {
+  const safeElo = ELO_ID_RE.test(String(elo)) ? elo : "emerald_plus"
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10000)
+  try {
+    const response = await fetch(`${SNAPSHOT_BASE}/${safeElo}.json`, {
+      mode: "cors", credentials: "omit", referrerPolicy: "no-referrer", signal: controller.signal,
+    })
+    if (!response.ok) throw new Error(`Snapshot indisponível (${response.status})`)
+    const data = await response.json()
+    if (!data?.positions) throw new Error("Snapshot sem dados.")
+    return data
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export async function fetchLeaderboard({ limit = 50 } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 100))
   return requestJson(`/leaderboard?limit=${safeLimit}`, { timeoutMs: SUMMONER_TIMEOUT_MS })

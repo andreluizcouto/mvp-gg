@@ -255,18 +255,23 @@ async def _champion_elo(champion_key: str, lane: str, elo: str) -> Optional[dict
         return cached or None
 
     fields = [f"data.summary.average_stats.{{{','.join(_ELO_FIELDS)}}}"]
-    try:
-        async with _opgg_semaphore:
-            text = await _call_tool("lol_get_champion_analysis", {
-                "game_mode": "ranked", "champion": champion_key.upper(), "position": lane,
-                "tier": elo, "desired_output_fields": fields,
-            })
-        order = dict(_CLASS_RE.findall(text)).get("AverageStats", ",".join(_ELO_FIELDS))
-        match = _AVERAGE_RE.search(text)
-        stats = dict(zip([f.strip() for f in order.split(",")], _literal(match.group(1)))) if match else {}
-    except Exception as e:
-        logger.warning(f"Falha ao buscar {champion_key}/{lane}/{elo} no OP.GG: {e}")
-        return None
+    stats = None
+    for attempt in range(3):   # o OP.GG às vezes falha uma chamada no meio de muitas
+        try:
+            async with _opgg_semaphore:
+                text = await _call_tool("lol_get_champion_analysis", {
+                    "game_mode": "ranked", "champion": champion_key.upper(), "position": lane,
+                    "tier": elo, "desired_output_fields": fields,
+                })
+            order = dict(_CLASS_RE.findall(text)).get("AverageStats", ",".join(_ELO_FIELDS))
+            match = _AVERAGE_RE.search(text)
+            stats = dict(zip([f.strip() for f in order.split(",")], _literal(match.group(1)))) if match else {}
+            break
+        except Exception as e:
+            if attempt == 2:
+                logger.warning(f"Falha ao buscar {champion_key}/{lane}/{elo} no OP.GG: {e}")
+                return None
+            await asyncio.sleep(2 * (attempt + 1))
 
     # Guarda também o "sem dados" (dict vazio) para não repetir a chamada.
     _cache_set(cache_key, stats, CACHE_TTL["champion_elo"])

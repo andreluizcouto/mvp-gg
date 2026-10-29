@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
-import { fetchLeaderboard, fetchTierlist, fetchTierlistByElo } from "./api"
-import { DEFAULT_ELO } from "./constants"
+import { fetchLeaderboard, fetchTierlist, fetchTierlistByElo, fetchTierlistSnapshot } from "./api"
+import { DEFAULT_ELO, LANES } from "./constants"
 
 // Cache em memória por sessão: a home e as telas usam os mesmos dados sem buscar duas vezes.
 const memory = new Map()
@@ -50,29 +50,35 @@ export function useTierlist() {
   return useCachedRequest("tierlist", fetchTierlist)
 }
 
-// Linhas da tier list de uma rota num elo. Esmeralda+ reaproveita a tier list padrão (já carregada);
-// os outros elos são montados no backend (~30s na primeira vez, depois em cache).
+// Tier list de um elo com as 5 rotas de uma vez: primeiro o snapshot pré-calculado (instantâneo);
+// se ele ainda não existir, o backend monta as 5 rotas em paralelo. Trocar de rota não busca de novo.
+async function fetchEloAllLanes(elo) {
+  try {
+    return await fetchTierlistSnapshot(elo)
+  } catch {
+    const results = await Promise.all(LANES.map(({ id }) => fetchTierlistByElo(id, elo)))
+    return {
+      elo,
+      ddragon_version: results[0]?.ddragon_version,
+      updated_at: Math.min(...results.map(r => r.updated_at || Infinity)),
+      positions: Object.fromEntries(LANES.map(({ id }, i) => [id, results[i]?.rows ?? []])),
+    }
+  }
+}
+
+// Linhas da tier list de uma rota num elo. Esmeralda+ reaproveita a tier list padrão (já carregada).
 export function useTierlistRows(lane, elo) {
   const base = useTierlist()
   const custom = elo !== DEFAULT_ELO
-  const byElo = useCachedRequest(`tierlist:${lane}:${elo}`, () => fetchTierlistByElo(lane, elo), custom)
-  if (!custom) {
-    return {
-      rows: base.data?.positions?.[lane] ?? [],
-      version: base.data?.ddragon_version,
-      updatedAt: base.data?.updated_at,
-      loading: base.loading,
-      error: base.error,
-      retry: base.retry,
-    }
-  }
+  const byElo = useCachedRequest(`tierlist-elo:${elo}`, () => fetchEloAllLanes(elo), custom)
+  const source = custom ? byElo : base
   return {
-    rows: byElo.data?.rows ?? [],
-    version: byElo.data?.ddragon_version ?? base.data?.ddragon_version,
-    updatedAt: byElo.data?.updated_at,
-    loading: byElo.loading,
-    error: byElo.error,
-    retry: byElo.retry,
+    rows: source.data?.positions?.[lane] ?? [],
+    version: source.data?.ddragon_version ?? base.data?.ddragon_version,
+    updatedAt: source.data?.updated_at,
+    loading: source.loading,
+    error: source.error,
+    retry: source.retry,
   }
 }
 

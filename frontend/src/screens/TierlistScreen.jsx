@@ -162,7 +162,7 @@ export default function TierlistScreen() {
         <div className="p-2 md:p-3">
           {loading && elo !== DEFAULT_ELO && (
             <p className="px-3 pb-3 pt-1 text-bs text-black-300">
-              Montando a tier list de {eloLabel(elo)}… na primeira vez pode levar uns 30 segundos. Depois fica salva por 12 horas.
+              Carregando a tier list de {eloLabel(elo)}…
             </p>
           )}
           {loading && <SkeletonRows rows={10} className="h-14" />}
