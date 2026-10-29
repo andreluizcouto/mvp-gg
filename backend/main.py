@@ -30,7 +30,10 @@ from analysis_contracts import EvidenceSource, PipelineStage
 from coach_ai import run_full_analysis, CoachAI, _get_ai_cache, _set_ai_cache, _is_valid_ai_result
 from context_builder import ContextBuilder
 from evidence_pipeline import build_analysis_evidence_bundle, gate_pipeline_stage
-from riot_client import RiotMatchClient, get_item_names, cache_invalidate
+from riot_client import RiotMatchClient, get_item_names, cache_invalidate, get_champion_keys_by_id, get_spell_keys_by_id
+from riot_client import CACHE_TTL as RIOT_CACHE_TTL, _cache_get as riot_cache_get, _cache_set as riot_cache_set
+from opgg_client import get_tierlist
+from queues import get_queue_names
 from live_coach import LiveCoachSession
 from postgame_analyzer import analyze_postgame
 from schemas import (
@@ -39,7 +42,7 @@ from schemas import (
     ScoreboardPlayer, ScoreboardTeam, ScoreboardResponse,
     LocalEventUpload, LocalUploadRequest, LocalUploadResponse,
     AnalyzeRequest, InsightResponse, AnalyzeResponse,
-    MatchHistoryItem, MatchHistoryResponse,
+    MatchHistoryItem, MatchHistoryResponse, RankedQueueEntry,
 )
 from schemas_auth import (
     AuthLoginRequest,
@@ -815,6 +818,25 @@ def _get_download_app_url() -> str:
     return url
 
 
+# Filtros de modo do perfil → filas da match-v5 (ids conferidos na lista de filas do cliente).
+# ARAM: Desordem tem várias filas jogáveis (2400–2405) e a variante "Raiz" (2450).
+# 710 é "Ranqueada-5": aparece em "todas", mas não entra em nenhum filtro.
+QUEUE_GROUPS: dict[str, list[int]] = {
+    "solo":   [420],
+    "flex":   [440],
+    "normal": [400, 430, 480, 490],
+    "aram":   [450, 2400, 2401, 2403, 2405, 2450],
+    "arena":  [1700, 1710, 1740, 1750],
+}
+
+
+def _validate_queue_group(queue: str) -> str:
+    value = (queue or "all").strip().lower()
+    if value != "all" and value not in QUEUE_GROUPS:
+        raise HTTPException(status_code=422, detail="queue invalido. Use all, " + ", ".join(QUEUE_GROUPS) + ".")
+    return value
+
+
 def _validate_history_page(start: int, count: int) -> tuple[int, int]:
     if start < 0:
         raise HTTPException(status_code=422, detail="start invalido.")
@@ -838,18 +860,28 @@ def _parse_match_ids(ids: str) -> list[str]:
     return deduped
 
 
-async def _build_match_history_response(riot: RiotMatchClient, game_name: str, tag_line: str, start: int, count: int) -> MatchHistoryResponse:
+async def _build_match_history_response(
+    riot: RiotMatchClient, game_name: str, tag_line: str, start: int, count: int, queue: str = "all",
+) -> MatchHistoryResponse:
     summoner = await riot.get_summoner_by_name(game_name, tag_line)
     if not summoner:
-        raise HTTPException(status_code=404, detail="Jogador nÃ£o encontrado.")
+        raise HTTPException(status_code=404, detail="Jogador não encontrado.")
 
-    rank = await riot.get_summoner_rank(summoner.summoner_id)
+    rank = await riot.get_summoner_rank(summoner.puuid)
     if rank in ("DEFAULT", "UNRANKED", None):
         rank = "Unranked"
+    # Mesma chamada (em cache) que o rank acima: temporada inteira de solo/duo e flex.
+    ranked_entries = await riot.get_ranked_entries(summoner.puuid) or []
 
-    raw_match_ids = await riot.get_match_history(summoner.puuid, start=start, count=count + 1)
-    if not raw_match_ids and start == 0:
-        raise HTTPException(status_code=404, detail="Nenhuma partida encontrada.")
+    if queue == "all":
+        raw_match_ids = await riot.get_match_history(summoner.puuid, start=start, count=count + 1)
+        if not raw_match_ids and start == 0:
+            raise HTTPException(status_code=404, detail="Nenhuma partida encontrada.")
+    else:
+        # Com filtro, não ter partida naquele modo é normal: devolve a lista vazia.
+        raw_match_ids = await riot.get_match_history_for_queues(
+            summoner.puuid, QUEUE_GROUPS[queue], start=start, count=count + 1,
+        )
 
     has_more = len(raw_match_ids) > count
     match_ids = raw_match_ids[:count]
@@ -860,7 +892,13 @@ async def _build_match_history_response(riot: RiotMatchClient, game_name: str, t
             for i, mid in enumerate(match_ids)
         ], return_exceptions=True)
 
+    for mid, result in zip(match_ids, results):
+        if isinstance(result, Exception):
+            logger.warning("history.match_failed match_id=%s erro=%r", mid, result)
     matches = [r for r in results if isinstance(r, MatchHistoryItem)]
+    queue_names = await get_queue_names()
+    for m in matches:
+        m.queue_name = queue_names.get(m.queue_id, "")
     wins = sum(1 for m in matches if m.win)
 
     return MatchHistoryResponse(
@@ -872,6 +910,8 @@ async def _build_match_history_response(riot: RiotMatchClient, game_name: str, t
         losses=len(matches) - wins,
         has_more=has_more,
         next_offset=start + len(match_ids),
+        queue=queue,
+        ranked=[RankedQueueEntry(**entry) for entry in ranked_entries],
     )
 
 
@@ -910,27 +950,39 @@ async def _upload_coaching_to_render(match_id: str, puuid: str, analysis: str) -
         logger.error(f"Falha ao fazer upload do coaching: {e}")
 
 async def fetch_match_details(puuid: str, match_id: str, index: int, api_key: str, client: httpx.AsyncClient) -> MatchHistoryItem:
-    url = f"https://americas.api.riotgames.com/lol/match/v5/matches/{match_id}"
-    resp = await client.get(url, headers={"X-Riot-Token": api_key}, timeout=10)
-    resp.raise_for_status()
-    data = resp.json()
+    # Partida terminada não muda: usa o mesmo cache do RiotMatchClient.get_match (7 dias),
+    # o que poupa o limite da chave quando várias pessoas abrem perfis ao mesmo tempo.
+    cache_key = f"match_{match_id}"
+    data = riot_cache_get(cache_key)
+    if not data:
+        url = f"https://americas.api.riotgames.com/lol/match/v5/matches/{match_id}"
+        resp = await client.get(url, headers={"X-Riot-Token": api_key}, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        riot_cache_set(cache_key, data, RIOT_CACHE_TTL["match"])
 
-    participants  = data["info"]["participants"]
+    info          = data["info"]
+    participants  = info["participants"]
     participant   = next(p for p in participants if p["puuid"] == puuid)
-    duration_min  = data["info"]["gameDuration"] / 60
-    team_id       = participant["teamId"]
+    duration_min  = info["gameDuration"] / 60
+    game_mode     = info.get("gameMode", "")
+    is_arena      = game_mode == "CHERRY"
+    # No Arena o "time" é a dupla (playerSubteamId); nos outros modos, o lado do mapa (teamId).
+    team_key      = "playerSubteamId" if is_arena else "teamId"
+    team_id       = participant.get(team_key)
     kills         = participant["kills"]
     assists       = participant["assists"]
 
+    teammates  = [p for p in participants if p.get(team_key) == team_id]
     cs         = participant.get("totalMinionsKilled", 0) + participant.get("neutralMinionsKilled", 0)
-    team_kills = sum(p["kills"] for p in participants if p["teamId"] == team_id)
-    team_dmg   = sum(p.get("totalDamageDealtToChampions", 0) for p in participants if p["teamId"] == team_id)
+    team_kills = sum(p["kills"] for p in teammates)
+    team_dmg   = sum(p.get("totalDamageDealtToChampions", 0) for p in teammates)
     player_dmg = participant.get("totalDamageDealtToChampions", 0)
 
     allies = [
         {"champion": p["championName"], "position": p.get("teamPosition", "")}
-        for p in participants
-        if p["teamId"] == team_id and p["puuid"] != puuid
+        for p in teammates
+        if p["puuid"] != puuid
     ]
 
     items         = [participant.get(f"item{i}", 0) for i in range(7)]
@@ -962,6 +1014,10 @@ async def fetch_match_details(puuid: str, match_id: str, index: int, api_key: st
         allies=allies,
         items=items,
         total_damage=total_damage,
+        queue_id=info.get("queueId", 0),
+        game_mode=game_mode,
+        placement=participant.get("placement") if is_arena else None,
+        ended_at=info.get("gameEndTimestamp") or (info.get("gameStartTimestamp", 0) + info.get("gameDuration", 0) * 1000) or None,
     )
 
 
@@ -1026,18 +1082,19 @@ async def auth_me(request: Request):
 
 
 @app.get("/summoner/{game_name}/{tag_line}", response_model=MatchHistoryResponse)
-async def get_summoner(game_name: str, tag_line: str, request: Request, start: int = 0, count: int = 10):
-    """Busca o jogador, rank e retorna as últimas partidas hidratadas."""
+async def get_summoner(game_name: str, tag_line: str, request: Request, start: int = 0, count: int = 10, queue: str = "all"):
+    """Busca o jogador, rank e retorna as últimas partidas hidratadas (todas ou de um modo)."""
     await _check_public_limits(request, "summoner")
     start, count = _validate_history_page(start, count)
+    queue = _validate_queue_group(queue)
     riot = RiotMatchClient(api_key=RIOT_KEY)
-    return await _build_match_history_response(riot, game_name, tag_line, start, count)
+    return await _build_match_history_response(riot, game_name, tag_line, start, count, queue)
 
     summoner = await riot.get_summoner_by_name(game_name, tag_line)
     if not summoner:
         raise HTTPException(status_code=404, detail="Jogador não encontrado.")
 
-    rank      = await riot.get_summoner_rank(summoner.summoner_id)
+    rank      = await riot.get_summoner_rank(summoner.puuid)
     if rank in ("DEFAULT", "UNRANKED", None):
         rank = "Unranked"
     match_ids = await riot.get_match_history(summoner.puuid, count=10)
@@ -1063,11 +1120,83 @@ async def get_summoner(game_name: str, tag_line: str, request: Request, start: i
     )
 
 
+@app.get("/meta/tierlist")
+async def get_meta_tierlist(request: Request):
+    """Tier list de campeões por rota, com dados do OP.GG (cache de 6h)."""
+    await _check_public_limits(request, "meta")
+    tierlist = await get_tierlist()
+    if tierlist is None:
+        raise HTTPException(status_code=503, detail="Tier list indisponível no momento. Tente novamente em instantes.")
+    return tierlist
+
+
+@app.get("/leaderboard")
+async def get_leaderboard(request: Request, limit: int = 50):
+    """Top do Challenger solo/duo do BR, ordenado por PDL (cache de 30min)."""
+    await _check_public_limits(request, "leaderboard")
+    limit = max(1, min(limit, 100))
+    riot = RiotMatchClient(api_key=RIOT_KEY)
+    ladder = await riot.get_challenger_ladder(limit=limit)
+    if ladder is None:
+        raise HTTPException(status_code=503, detail="Ranking indisponível no momento. Tente novamente em instantes.")
+    return {"region": "BR", "queue": "RANKED_SOLO_5x5", "players": ladder}
+
+
+@app.get("/summoner/{game_name}/{tag_line}/live")
+async def get_live_game(game_name: str, tag_line: str, request: Request):
+    """Partida ao vivo do jogador (spectator-v5), com campeões, feitiços e bans prontos para exibir."""
+    await _check_public_limits(request, "live")
+    riot = RiotMatchClient(api_key=RIOT_KEY)
+    summoner = await riot.get_summoner_by_name(game_name, tag_line)
+    if not summoner:
+        raise HTTPException(status_code=404, detail="Jogador não encontrado.")
+
+    game = await riot.get_active_game(summoner.puuid)
+    if game is None:
+        raise HTTPException(status_code=503, detail="Não deu para consultar a partida ao vivo agora.")
+    if not game:
+        return {"in_game": False}
+
+    champions, spells, queue_names = await asyncio.gather(
+        get_champion_keys_by_id(), get_spell_keys_by_id(), get_queue_names(),
+    )
+    queue_id = game.get("gameQueueConfigId", 0)
+    participants = [
+        {
+            "riot_id":      p.get("riotId", ""),
+            "team_id":      p.get("teamId", 0),
+            "champion_key": champions.get(p.get("championId"), ""),
+            "spells":       [spells.get(p.get("spell1Id"), ""), spells.get(p.get("spell2Id"), "")],
+            "is_bot":       bool(p.get("bot")),
+            "is_target":    p.get("puuid") == summoner.puuid,
+        }
+        for p in game.get("participants", [])
+    ]
+    bans = [
+        {"team_id": b.get("teamId", 0), "champion_key": champions.get(b.get("championId"), "")}
+        for b in game.get("bannedChampions", [])
+        if b.get("championId", -1) > 0
+    ]
+    return {
+        "in_game":        True,
+        "game_id":        game.get("gameId"),
+        "queue_id":       queue_id,
+        "queue_name":     queue_names.get(queue_id, ""),
+        "game_mode":      game.get("gameMode", ""),
+        # gameStartTime fica 0 enquanto a partida está carregando
+        "started_at":     game.get("gameStartTime") or None,
+        "length_seconds": game.get("gameLength", 0),
+        "participants":   participants,
+        "bans":           bans,
+    }
+
+
 @app.get("/summoner/{game_name}/{tag_line}/refresh", response_model=MatchHistoryResponse)
-async def refresh_summoner(game_name: str, tag_line: str, request: Request, start: int = 0, count: int = 10):
+async def refresh_summoner(game_name: str, tag_line: str, request: Request, start: int = 0, count: int = 10, queue: str = "all"):
     """Força atualização: limpa cache e busca dados frescos da Riot API."""
     await _check_refresh_limits(request)
     start, count = _validate_history_page(start, count)
+    queue = _validate_queue_group(queue)
     riot = RiotMatchClient(api_key=RIOT_KEY)
 
     summoner = await riot.get_summoner_by_name(game_name, tag_line)
@@ -1076,10 +1205,10 @@ async def refresh_summoner(game_name: str, tag_line: str, request: Request, star
 
     # Invalida caches de history e rank desse jogador
     cache_invalidate(f"history_{summoner.puuid}")
-    cache_invalidate(f"rank_{summoner.summoner_id}")
-    return await _build_match_history_response(riot, game_name, tag_line, start, count)
+    cache_invalidate(f"rank_{summoner.puuid}")
+    return await _build_match_history_response(riot, game_name, tag_line, start, count, queue)
 
-    rank      = await riot.get_summoner_rank(summoner.summoner_id)
+    rank      = await riot.get_summoner_rank(summoner.puuid)
     if rank in ("DEFAULT", "UNRANKED", None):
         rank = "Unranked"
     match_ids = await riot.get_match_history(summoner.puuid, count=10)
@@ -1119,7 +1248,7 @@ async def analyze_match(body: AnalyzeRequest, request: Request):
         if not summoner:
             raise ValueError(f"Jogador {body.game_name}#{body.tag_line} não encontrado.")
 
-        rank = await riot.get_summoner_rank(summoner.summoner_id)
+        rank = await riot.get_summoner_rank(summoner.puuid)
         if rank in ("DEFAULT", "UNRANKED", None):
             rank = "Unranked"
         logger.info(f"Rank de {body.game_name}#{body.tag_line} → {rank}")
@@ -1191,7 +1320,7 @@ async def analyze_stream(game_name: str, tag_line: str, match_index: int, reques
                 yield sse("error", "Jogador não encontrado.")
                 return
 
-            rank = await riot.get_summoner_rank(summoner.summoner_id)
+            rank = await riot.get_summoner_rank(summoner.puuid)
             if rank in ("DEFAULT", "UNRANKED", None):
                 rank = "Unranked"
 
@@ -1781,20 +1910,29 @@ async def get_scoreboard(match_id: str, request: Request, puuid: str = ""):
     info         = match_data.raw.get("info", {})
     participants = info.get("participants", [])
     duration_min = info.get("gameDuration", 0) / 60
+    # No Arena os times são duplas (playerSubteamId), ordenadas pela colocação final.
+    is_arena     = info.get("gameMode") == "CHERRY"
+    team_key     = "playerSubteamId" if is_arena else "teamId"
 
     # Pré-calcula dano total por time para damage_share_pct
     team_dmg_totals: dict[int, int] = {}
     for p in participants:
-        tid = p["teamId"]
+        tid = p.get(team_key)
         team_dmg_totals[tid] = team_dmg_totals.get(tid, 0) + p.get("totalDamageDealtToChampions", 0)
 
-    teams_raw: dict[int, dict] = {
-        100: {"side": "blue", "win": False, "players": []},
-        200: {"side": "red",  "win": False, "players": []},
-    }
+    if is_arena:
+        teams_raw: dict[int, dict] = {}
+        for p in participants:
+            team = teams_raw.setdefault(p.get(team_key), {"side": "arena", "win": False, "placement": None, "players": []})
+            team["placement"] = p.get("placement") or team["placement"]
+    else:
+        teams_raw = {
+            100: {"side": "blue", "win": False, "placement": None, "players": []},
+            200: {"side": "red",  "win": False, "placement": None, "players": []},
+        }
 
     for p in participants:
-        tid          = p["teamId"]
+        tid          = p.get(team_key)
         if tid not in teams_raw:
             continue
         player_dmg   = p.get("totalDamageDealtToChampions", 0)
@@ -1828,9 +1966,10 @@ async def get_scoreboard(match_id: str, request: Request, puuid: str = ""):
             is_target      = (p.get("puuid", "") == puuid) if puuid else False,
         ))
 
+    ordered = sorted(teams_raw.values(), key=lambda t: t["placement"] or 99) if is_arena else teams_raw.values()
     teams = [
-        ScoreboardTeam(side=t["side"], win=t["win"], players=t["players"])
-        for t in teams_raw.values()
+        ScoreboardTeam(side=t["side"], win=t["win"], placement=t["placement"], players=t["players"])
+        for t in ordered
     ]
 
     return ScoreboardResponse(
@@ -1912,7 +2051,7 @@ async def _build_match_context_for_local_upload(riot_id: str, match_id: str):
             logger.warning("Nao foi possivel carregar match/timeline para upload local: %s", match_id)
             return None
 
-        rank = await riot.get_summoner_rank(summoner.summoner_id)
+        rank = await riot.get_summoner_rank(summoner.puuid)
         if rank in ("DEFAULT", "UNRANKED", None):
             rank = "Unranked"
 

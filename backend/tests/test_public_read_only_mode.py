@@ -60,6 +60,10 @@ def test_analyze_allows_valid_internal_token(monkeypatch):
         async def get_summoner_rank(self, summoner_id):
             return "GOLD IV"
 
+
+        async def get_ranked_entries(self, _puuid):
+            return []
+
     async def fake_run_full_analysis(**kwargs):
         context = SimpleNamespace(
             match_id="BR1_123",
@@ -453,6 +457,10 @@ def _patch_analyze_pipeline_dependencies(monkeypatch, match_id: str):
 
         async def get_summoner_rank(self, summoner_id):
             return "GOLD IV"
+
+
+        async def get_ranked_entries(self, _puuid):
+            return []
 
         async def get_match_history(self, puuid, count=10):
             return [self._match_id]

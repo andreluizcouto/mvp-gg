@@ -99,8 +99,9 @@ class ScoreboardPlayer(BaseModel):
 
 
 class ScoreboardTeam(BaseModel):
-    side: str
+    side: str                         # "blue", "red" ou "arena" (dupla)
     win: bool
+    placement: Optional[int] = None   # só no Arena
     players: list[ScoreboardPlayer]
 
 
@@ -210,6 +211,24 @@ class MatchHistoryItem(BaseModel):
     allies: list[dict[str, Any]] = Field(default_factory=list)
     items: list[int] = Field(default_factory=list)
     total_damage: int = 0
+    queue_id: int = 0
+    queue_name: str = ""   # nome oficial em português (ex.: "ARAM: Desordem")
+    game_mode: str = ""
+    # Só no Arena: colocação final do time (1 = campeão)
+    placement: Optional[int] = None
+    # Fim da partida em milissegundos (epoch), para "há X horas"
+    ended_at: Optional[int] = None
+
+
+class RankedQueueEntry(BaseModel):
+    queue: str
+    tier: str
+    division: str = ""
+    lp: int = 0
+    wins: int = 0
+    losses: int = 0
+    win_rate: float = 0.0
+    hot_streak: bool = False
 
 
 class MatchHistoryResponse(BaseModel):
@@ -217,7 +236,10 @@ class MatchHistoryResponse(BaseModel):
     puuid: str
     rank: str
     matches: list[MatchHistoryItem]
+    # wins/losses = partidas desta página; ranked = temporada inteira por fila
     wins: int = 0
     losses: int = 0
     has_more: bool = False
     next_offset: int = 0
+    queue: str = "all"
+    ranked: list[RankedQueueEntry] = Field(default_factory=list)

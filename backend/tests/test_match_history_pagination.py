@@ -23,6 +23,10 @@ def test_summoner_history_supports_pagination(monkeypatch):
         async def get_summoner_rank(self, _summoner_id):
             return "GOLD IV"
 
+
+        async def get_ranked_entries(self, _puuid):
+            return []
+
         async def get_match_history(self, puuid, count=10, start=0, queue=None):
             self.calls.append((puuid, start, count, queue))
             return [f"BR1_{i}" for i in range(start, start + count)]
@@ -91,6 +95,10 @@ def test_refresh_summoner_history_supports_pagination(monkeypatch):
         async def get_summoner_rank(self, _summoner_id):
             return "PLATINUM I"
 
+
+        async def get_ranked_entries(self, _puuid):
+            return []
+
         async def get_match_history(self, puuid, count=10, start=0, queue=None):
             self.calls.append((puuid, start, count, queue))
             return [f"BR1_REFRESH_{i}" for i in range(start, start + count)]
@@ -137,7 +145,7 @@ def test_refresh_summoner_history_supports_pagination(monkeypatch):
     assert payload["next_offset"] == 15
     assert fake_client.calls == [("puuid-refresh", 5, 11, None)]
     assert f"history_puuid-refresh" in invalidated
-    assert f"rank_{fake_client.summoner_id}" in invalidated
+    assert "rank_puuid-refresh" in invalidated
 
 
 def test_summoner_history_rejects_invalid_pagination(monkeypatch):

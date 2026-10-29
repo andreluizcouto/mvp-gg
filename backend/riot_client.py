@@ -4,6 +4,7 @@ Busca dados históricos de partidas para análise de coach.
 Cache em disco (JSON local) para evitar rate limit da Riot API.
 """
 
+import asyncio
 import httpx
 import json
 import logging
@@ -34,6 +35,9 @@ CACHE_TTL = {
     "rank":            60 * 15,            # 15 minutos
     "items":           60 * 60 * 24 * 7,
     "ddragon_versions": 60 * 60 * 24,
+    "ladder":          60 * 30,            # 30 minutos — ranking muda devagar e custa N chamadas
+    "live":            30,                 # partida ao vivo: curto, mas evita martelar a Riot a cada clique
+    "ddragon_static":  60 * 60 * 24,
 }
 
 
@@ -71,6 +75,13 @@ def _cache_set(key: str, data, ttl: int) -> None:
         logger.debug(f"Cache salvo: {key} (TTL: {ttl}s)")
     except Exception as e:
         logger.error(f"Erro ao salvar cache ({key}): {e}")
+
+
+def _match_number(match_id: str) -> int:
+    try:
+        return int(str(match_id).rsplit("_", 1)[-1])
+    except ValueError:
+        return 0
 
 
 def cache_invalidate(prefix: str) -> int:
@@ -205,58 +216,151 @@ class RiotMatchClient:
 
     # ── Rank ────────────────────────────────
 
-    async def get_summoner_rank(self, summoner_id: str) -> str:
+    async def get_ranked_entries(self, puuid: str) -> Optional[list[dict]]:
         """
-        Busca o rank atual do jogador no ranked solo/duo.
-        Retorna a tier (ex: "GOLD", "DIAMOND").
-        Retorna "UNRANKED" se não tiver ranked, "DEFAULT" em caso de erro.
+        Filas ranqueadas da temporada (solo/duo e flex) com tier, divisão, PDL e vitórias/derrotas.
+        Retorna [] se o jogador não tem ranqueada na temporada e None em caso de erro.
+        A Riot removeu o summonerId da summoner-v4; a busca é pelo PUUID.
         """
-        cache_key = f"rank_{summoner_id}"
+        cache_key = f"rank_{puuid}"
         cached = _cache_get(cache_key)
-        if cached is not None:
+        if isinstance(cached, list):
             return cached
 
-        url = f"{BASE_PLATFORM}/lol/league/v4/entries/by-summoner/{summoner_id}"
+        url = f"{BASE_PLATFORM}/lol/league/v4/entries/by-puuid/{puuid}"
         try:
             async with httpx.AsyncClient() as client:
                 r = await client.get(url, headers=self._headers, timeout=10)
 
             if r.status_code == 403:
                 logger.warning("Chave sem permissão para buscar rank.")
-                return "DEFAULT"
+                return None
             elif r.status_code == 429:
                 logger.warning("Rate limit ao buscar rank.")
-                return "DEFAULT"
+                return None
             elif r.status_code != 200:
                 logger.error(f"Erro {r.status_code} ao buscar rank.")
-                return "DEFAULT"
+                return None
 
             data = r.json()  # retorna lista, não dict
-
-            # Valida que é uma lista
             if not isinstance(data, list):
                 logger.warning(f"Resposta inesperada ao buscar rank: {data}")
-                return "DEFAULT"
-
-            # Lista vazia = jogador sem ranked nessa temporada
-            if len(data) == 0:
-                logger.info(f"Jogador sem ranked → UNRANKED")
-                rank = "UNRANKED"
-            else:
-                # Prioriza ranked solo/duo, fallback para qualquer queue disponível
-                solo = next(
-                    (q for q in data if q.get("queueType") == "RANKED_SOLO_5x5"),
-                    data[0]
-                )
-                rank = solo.get("tier", "DEFAULT").upper()
-                logger.info(f"Rank encontrado: {rank}")
-
-            _cache_set(cache_key, rank, CACHE_TTL["rank"])
-            return rank
+                return None
 
         except Exception as e:
             logger.warning(f"Falha ao buscar rank: {e}")
+            return None
+
+        entries = []
+        for q in data:
+            wins, losses = q.get("wins", 0), q.get("losses", 0)
+            entries.append({
+                "queue":      q.get("queueType", ""),
+                "tier":       str(q.get("tier", "")).upper(),
+                "division":   q.get("rank", ""),
+                "lp":         q.get("leaguePoints", 0),
+                "wins":       wins,
+                "losses":     losses,
+                "win_rate":   round(wins / (wins + losses) * 100, 1) if wins + losses else 0.0,
+                "hot_streak": bool(q.get("hotStreak")),
+            })
+        _cache_set(cache_key, entries, CACHE_TTL["rank"])
+        return entries
+
+    async def get_summoner_rank(self, puuid: str) -> str:
+        """
+        Tier do ranked solo/duo (ex: "GOLD", "DIAMOND"), com fallback para qualquer fila ranqueada.
+        Retorna "UNRANKED" se não tiver ranked, "DEFAULT" em caso de erro.
+        """
+        entries = await self.get_ranked_entries(puuid)
+        if entries is None:
             return "DEFAULT"
+        if not entries:
+            return "UNRANKED"
+        solo = next((q for q in entries if q["queue"] == "RANKED_SOLO_5x5"), entries[0])
+        return solo["tier"] or "DEFAULT"
+
+    # ── Ranking (Challenger) ────────────────
+
+    async def get_challenger_ladder(self, limit: int = 50) -> Optional[list[dict]]:
+        """
+        Top `limit` do Challenger solo/duo do servidor, ordenado por PDL.
+        A league-v4 não traz o Riot ID, então cada jogador custa uma chamada à account-v1:
+        o resultado fica em cache para não gastar o limite da chave.
+        """
+        cache_key = f"ladder_{PLATFORM}_{limit}"
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
+
+        url = f"{BASE_PLATFORM}/lol/league/v4/challengerleagues/by-queue/RANKED_SOLO_5x5"
+        async with httpx.AsyncClient() as client:
+            league = await self._get(client, url)
+            if not league:
+                return None
+
+            entries = sorted(league.get("entries", []), key=lambda e: e.get("leaguePoints", 0), reverse=True)[:limit]
+            semaphore = asyncio.Semaphore(8)
+
+            async def resolve_name(puuid: str) -> Optional[dict]:
+                async with semaphore:
+                    return await self._get(client, f"{BASE_REGION}/riot/account/v1/accounts/by-puuid/{puuid}")
+
+            accounts = await asyncio.gather(*[resolve_name(e.get("puuid", "")) for e in entries])
+
+        ladder = []
+        for position, (entry, account) in enumerate(zip(entries, accounts), start=1):
+            if not account:
+                continue
+            wins, losses = entry.get("wins", 0), entry.get("losses", 0)
+            ladder.append({
+                "position":   position,
+                "game_name":  account.get("gameName", ""),
+                "tag_line":   account.get("tagLine", ""),
+                "tier":       league.get("tier", "CHALLENGER"),
+                "lp":         entry.get("leaguePoints", 0),
+                "wins":       wins,
+                "losses":     losses,
+                "win_rate":   round(wins / (wins + losses) * 100, 1) if wins + losses else 0.0,
+                "hot_streak": bool(entry.get("hotStreak")),
+                "veteran":    bool(entry.get("veteran")),
+                "fresh_blood": bool(entry.get("freshBlood")),
+            })
+
+        if ladder:
+            _cache_set(cache_key, ladder, CACHE_TTL["ladder"])
+        return ladder
+
+    # ── Partida ao vivo ─────────────────────
+
+    async def get_active_game(self, puuid: str) -> Optional[dict]:
+        """
+        Partida em andamento (spectator-v5). Retorna {} se o jogador não está em jogo
+        e None se a Riot não respondeu (chave, limite, rede).
+        """
+        cache_key = f"live_{puuid}"
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
+
+        url = f"{BASE_PLATFORM}/lol/spectator/v5/active-games/by-summoner/{puuid}"
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(url, headers=self._headers, timeout=10)
+        except httpx.HTTPError as e:
+            logger.warning(f"Falha ao buscar partida ao vivo: {e}")
+            return None
+
+        if r.status_code == 404:
+            game = {}
+        elif r.status_code == 200:
+            game = r.json()
+        else:
+            logger.warning(f"Erro {r.status_code} ao buscar partida ao vivo.")
+            return None
+
+        _cache_set(cache_key, game, CACHE_TTL["live"])
+        return game
 
     # ── Histórico ───────────────────────────
 
@@ -275,6 +379,20 @@ class RiotMatchClient:
         if result:
             _cache_set(cache_key, result, CACHE_TTL["history"])
         return result
+
+    async def get_match_history_for_queues(self, puuid: str, queues: list[int], count: int = 10, start: int = 0) -> list[str]:
+        """
+        Histórico filtrado por um grupo de filas (ex.: todas as normais).
+        A match-v5 aceita uma fila por chamada: busca cada uma desde o início, junta e pagina aqui.
+        Os IDs de partida (BR1_<número>) crescem com o tempo, então ordenar pelo número põe as mais novas primeiro.
+        """
+        if len(queues) == 1:
+            return await self.get_match_history(puuid, count=count, start=start, queue=queues[0])
+
+        window = min(start + count, 100)
+        lists = await asyncio.gather(*[self.get_match_history(puuid, count=window, start=0, queue=q) for q in queues])
+        merged = sorted({mid for ids in lists for mid in ids}, key=_match_number, reverse=True)
+        return merged[start:start + count]
 
     # ── Partida ─────────────────────────────
 
@@ -459,6 +577,38 @@ async def get_item_names(game_version: str = "") -> dict[str, str]:
         logger.error(f"Falha ao buscar nomes de itens: {e}")
 
     return {}
+
+
+async def _ddragon_id_map(filename: str) -> dict[int, str]:
+    """Mapa id numérico → chave de imagem do Data Dragon (campeões ou feitiços)."""
+    version = await _resolve_ddragon_version("")
+    cache_key = f"ddragon_ids_{filename}_{version}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return {int(k): v for k, v in cached.items()}
+
+    url = f"https://ddragon.leagueoflegends.com/cdn/{version}/data/en_US/{filename}.json"
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(url, timeout=10)
+        r.raise_for_status()
+        mapping = {int(entry["key"]): entry["id"] for entry in r.json().get("data", {}).values()}
+    except Exception as e:
+        logger.error(f"Falha ao buscar {filename} do DDragon: {e}")
+        return {}
+
+    _cache_set(cache_key, {str(k): v for k, v in mapping.items()}, CACHE_TTL["ddragon_static"])
+    return mapping
+
+
+async def get_champion_keys_by_id() -> dict[int, str]:
+    """{ 154: "Zac", 62: "MonkeyKing", ... }"""
+    return await _ddragon_id_map("champion")
+
+
+async def get_spell_keys_by_id() -> dict[int, str]:
+    """{ 4: "SummonerFlash", 11: "SummonerSmite", ... }"""
+    return await _ddragon_id_map("summoner")
 
 
 # ─────────────────────────────────────────
