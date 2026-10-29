@@ -239,10 +239,11 @@ export async function fetchTierlist() {
 
 const LANES_ALLOWED = new Set(["top", "jungle", "mid", "adc", "support"])
 
-// Força por elo: com o servidor frio, o OP.GG leva até ~30s por rota (depois fica em cache).
-export async function fetchTierlistElos(lane) {
+// Tier list num elo: com o servidor frio, o OP.GG leva ~30s por rota e elo (depois fica em cache).
+export async function fetchTierlistByElo(lane, elo) {
   const safeLane = LANES_ALLOWED.has(lane) ? lane : "mid"
-  return requestJson(`/meta/tierlist/elos?lane=${safeLane}`, { timeoutMs: 120000 })
+  const params = new URLSearchParams({ lane: safeLane, elo: String(elo || "emerald_plus") })
+  return requestJson(`/meta/tierlist/elo?${params.toString()}`, { timeoutMs: 120000 })
 }
 
 export async function fetchLeaderboard({ limit = 50 } = {}) {

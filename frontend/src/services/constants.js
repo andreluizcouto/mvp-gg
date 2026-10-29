@@ -60,6 +60,31 @@ export const LANES = [
   { id: "support", label: "Suporte" },
 ]
 
+// Elos do seletor da tier list (os mesmos do OP.GG). Esmeralda+ é o padrão do OP.GG.
+export const DEFAULT_ELO = "emerald_plus"
+export const TIERLIST_ELOS = [
+  { id: "all",           label: "Todos os elos" },
+  { id: "challenger",    label: "Desafiante" },
+  { id: "grandmaster",   label: "Grão-Mestre" },
+  { id: "master_plus",   label: "Mestre+" },
+  { id: "master",        label: "Mestre" },
+  { id: "diamond_plus",  label: "Diamante+" },
+  { id: "diamond",       label: "Diamante" },
+  { id: "emerald_plus",  label: "Esmeralda+" },
+  { id: "emerald",       label: "Esmeralda" },
+  { id: "platinum_plus", label: "Platina+" },
+  { id: "platinum",      label: "Platina" },
+  { id: "gold_plus",     label: "Ouro+" },
+  { id: "gold",          label: "Ouro" },
+  { id: "silver",        label: "Prata" },
+  { id: "bronze",        label: "Bronze" },
+  { id: "iron",          label: "Ferro" },
+]
+
+export function eloLabel(id) {
+  return TIERLIST_ELOS.find(e => e.id === id)?.label ?? "Esmeralda+"
+}
+
 // Tiers do OP.GG vão de 1 (OP) a 5. Mostramos na escala de letras que o jogador conhece.
 export const META_TIERS = {
   1: { label: "S", color: "#E2B95E" },

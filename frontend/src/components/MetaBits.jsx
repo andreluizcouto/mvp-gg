@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { META_TIERS, championIcon } from "../services/constants"
+import { META_TIERS, TIERLIST_ELOS, championIcon } from "../services/constants"
 
 // O mapa visto de cima, desenhado em linhas: é o motivo gráfico do site.
 // Top e bot nas bordas, a mid em ouro na diagonal, o rio cruzando e as torres em pontos.
@@ -94,33 +94,28 @@ export function RankTrend({ rank, previous }) {
   )
 }
 
-// Faixa "forte em": uma célula por elo (Ferro → Mestre+), colorida pelo tier do campeão naquele elo.
-// No celular as células ficam só com a cor; a letra aparece a partir de telas médias.
-export function EloStrip({ entries, elos }) {
+// Botão de elo da tier list ("Esmeralda+ ▾"): um <select> nativo com cara de chip,
+// que abre a lista do sistema no celular e funciona no teclado.
+export function EloSelect({ value, onChange, className = "" }) {
   return (
-    <span className="flex w-full max-w-[200px] gap-[3px]" role="list" aria-label="Tier por elo">
-      {elos.map((elo, i) => {
-        const entry = entries?.[i]
-        const meta = entry ? META_TIERS[entry.tier] : null
-        const text = entry && meta
-          ? `${elo.label}: tier ${meta.label} · ${(entry.win_rate * 100).toFixed(0)}% de vitórias`
-          : `${elo.label}: sem dados`
-        return (
-          <span
-            key={elo.id}
-            role="listitem"
-            title={text}
-            aria-label={text}
-            className="flex h-5 min-w-0 flex-1 items-center justify-center rounded-[5px] font-display text-bxs font-bold leading-none"
-            style={meta
-              ? { color: meta.color, backgroundColor: `${meta.color}24`, boxShadow: `inset 0 0 0 1px ${meta.color}40` }
-              : { backgroundColor: "rgba(255,255,255,0.04)" }}
-          >
-            <span className="hidden sm:inline">{meta?.label ?? ""}</span>
-          </span>
-        )
-      })}
-    </span>
+    <label className={`relative inline-flex min-h-[36px] items-center ${className}`}>
+      <span className="sr-only">Elo da tier list</span>
+      <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3 h-4 w-4 text-purple-400" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M12 3 4 7v6c0 4.4 3.4 7.6 8 8 4.6-.4 8-3.6 8-8V7z" strokeLinejoin="round" />
+      </svg>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-9 cursor-pointer appearance-none rounded-full border border-purple-400/40 bg-purple-400/10 pl-9 pr-9 text-bs font-semibold text-purple-200 outline-none transition hover:border-purple-400/70 focus-visible:ring-2 focus-visible:ring-purple-400/60"
+      >
+        {TIERLIST_ELOS.map((elo) => (
+          <option key={elo.id} value={elo.id} className="bg-black-700 text-black-100">{elo.label}</option>
+        ))}
+      </select>
+      <svg viewBox="0 0 24 24" className="pointer-events-none absolute right-3 h-4 w-4 text-purple-300" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polyline points="6 9 12 15 18 9" />
+      </svg>
+    </label>
   )
 }
 

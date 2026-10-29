@@ -32,7 +32,7 @@ from context_builder import ContextBuilder
 from evidence_pipeline import build_analysis_evidence_bundle, gate_pipeline_stage
 from riot_client import RiotMatchClient, get_item_names, cache_invalidate, get_champion_keys_by_id, get_spell_keys_by_id
 from riot_client import CACHE_TTL as RIOT_CACHE_TTL, _cache_get as riot_cache_get, _cache_set as riot_cache_set
-from opgg_client import POSITIONS as OPGG_POSITIONS, get_lane_elo_strength, get_tierlist, warm_all_lanes
+from opgg_client import POSITIONS as OPGG_POSITIONS, TIERLIST_ELOS, get_tierlist, get_tierlist_for_elo
 from queues import get_queue_names
 from live_coach import LiveCoachSession
 from postgame_analyzer import analyze_postgame
@@ -1127,22 +1127,23 @@ async def get_meta_tierlist(request: Request):
     tierlist = await get_tierlist()
     if tierlist is None:
         raise HTTPException(status_code=503, detail="Tier list indisponível no momento. Tente novamente em instantes.")
-    # Quem abre a tier list logo pede a força por elo: começa a calcular já.
-    warm_all_lanes()
     return tierlist
 
 
-@app.get("/meta/tierlist/elos")
-async def get_meta_tierlist_elos(request: Request, lane: str = "mid"):
-    """Para os primeiros campeões da rota: tier e winrate em cada elo (OP.GG, cache de 12h)."""
+@app.get("/meta/tierlist/elo")
+async def get_meta_tierlist_elo(request: Request, lane: str = "mid", elo: str = "emerald_plus"):
+    """Tier list de uma rota num elo (OP.GG). Esmeralda+ é imediato; os outros ficam 12h em cache."""
     await _check_public_limits(request, "meta")
     lane = (lane or "").strip().lower()
+    elo = (elo or "").strip().lower()
     if lane not in OPGG_POSITIONS:
         raise HTTPException(status_code=422, detail="lane invalida. Use " + ", ".join(OPGG_POSITIONS) + ".")
-    strength = await get_lane_elo_strength(lane)
-    if strength is None:
-        raise HTTPException(status_code=503, detail="Força por elo indisponível no momento.")
-    return strength
+    if elo not in TIERLIST_ELOS:
+        raise HTTPException(status_code=422, detail="elo invalido. Use " + ", ".join(TIERLIST_ELOS) + ".")
+    result = await get_tierlist_for_elo(lane, elo)
+    if result is None:
+        raise HTTPException(status_code=503, detail="Tier list indisponível no momento. Tente novamente em instantes.")
+    return result
 
 
 @app.get("/leaderboard")

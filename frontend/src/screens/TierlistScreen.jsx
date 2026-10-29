@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { LANES, META_TIERS, opggBuildUrl, positionIcon, uggBuildUrl } from "../services/constants"
-import { formatNumber, formatPercent, patchLabel, useTierlist, winRateColor } from "../services/meta"
-import { ChampionAvatar, ErrorState, RankTrend, SkeletonRows, TierBadge } from "../components/MetaBits"
+import { DEFAULT_ELO, LANES, META_TIERS, TIERLIST_ELOS, eloLabel, opggBuildUrl, positionIcon, uggBuildUrl } from "../services/constants"
+import { formatNumber, formatPercent, patchLabel, useTierlistRows, winRateColor } from "../services/meta"
+import { ChampionAvatar, EloSelect, ErrorState, RankTrend, SkeletonRows, TierBadge } from "../components/MetaBits"
 
 const SORTS = {
   rank:  { label: "#",        value: (r) => r.rank,      dir: 1 },
@@ -13,6 +13,7 @@ const SORTS = {
 }
 
 const VALID_LANES = new Set(LANES.map((l) => l.id))
+const VALID_ELOS = new Set(TIERLIST_ELOS.map((e) => e.id))
 
 function timeAgo(epochSeconds) {
   if (!epochSeconds) return ""
@@ -42,16 +43,16 @@ export default function TierlistScreen() {
   const [params, setParams] = useSearchParams()
   const laneParam = params.get("lane")
   const lane = VALID_LANES.has(laneParam) ? laneParam : "mid"
+  const eloParam = params.get("elo")
+  const elo = VALID_ELOS.has(eloParam) ? eloParam : DEFAULT_ELO
   const [sort, setSort] = useState("rank")
   const [query, setQuery] = useState("")
   const [hideOffMeta, setHideOffMeta] = useState(true)
-  const { data, loading, error, retry } = useTierlist()
-
-  const version = data?.ddragon_version
+  const { rows: laneRows, version, updatedAt, loading, error, retry } = useTierlistRows(lane, elo)
   const patch = patchLabel(version)
 
   const rows = useMemo(() => {
-    const list = data?.positions?.[lane] ?? []
+    const list = laneRows
     const term = query.trim().toLowerCase()
     const { value, dir } = SORTS[sort]
     return list
@@ -59,29 +60,31 @@ export default function TierlistScreen() {
       .filter((r) => !term || String(r.champion).toLowerCase().includes(term))
       .slice()
       .sort((a, b) => (value(a) - value(b)) * dir)
-  }, [data, lane, query, sort, hideOffMeta])
+  }, [laneRows, query, sort, hideOffMeta])
 
   const tierCounts = useMemo(() => {
     const counts = {}
-    for (const r of data?.positions?.[lane] ?? []) counts[r.tier] = (counts[r.tier] ?? 0) + 1
+    for (const r of laneRows) counts[r.tier] = (counts[r.tier] ?? 0) + 1
     return counts
-  }, [data, lane])
+  }, [laneRows])
 
-  function selectLane(id) {
+  function setParam(name, value) {
     const next = new URLSearchParams(params)
-    next.set("lane", id)
+    next.set(name, value)
     setParams(next, { replace: true })
   }
+  const selectLane = (id) => setParam("lane", id)
+  const selectElo = (id) => setParam("elo", id)
 
   return (
     <div className="mx-auto max-w-[1200px] px-4 py-10">
       <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="eyebrow">Tier list {patch && `· patch ${patch}`}</p>
+          <p className="eyebrow">Tier list {patch && `· patch ${patch}`} · {eloLabel(elo)}</p>
           <h1 className="mt-3 font-display text-[30px] font-bold leading-tight text-black-0 sm:text-[40px]">Quem está forte agora</h1>
           <p className="mt-3 max-w-xl text-bm text-black-300">
-            Força de cada campeão por rota na ranqueada solo/duo, com dados do OP.GG
-            {data?.updated_at ? `, atualizados ${timeAgo(data.updated_at)}` : ""}. Para a build completa, abra o campeão no OP.GG ou no U.GG.
+            Força de cada campeão por rota na ranqueada solo/duo em {eloLabel(elo)}, com dados do OP.GG
+            {updatedAt ? `, atualizados ${timeAgo(updatedAt)}` : ""}. Escolha o elo no botão abaixo. Para a build completa, abra o campeão no OP.GG ou no U.GG.
           </p>
         </div>
         <div className="flex flex-wrap gap-2" aria-label="Escala de tiers">
@@ -96,7 +99,8 @@ export default function TierlistScreen() {
       </header>
 
       <div className="mt-8 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Rota">
+        <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Rota">
+          <EloSelect value={elo} onChange={selectElo} className="mr-1" />
           {LANES.map(({ id, label }) => (
             <button
               key={id}
@@ -156,6 +160,11 @@ export default function TierlistScreen() {
         </div>
 
         <div className="p-2 md:p-3">
+          {loading && elo !== DEFAULT_ELO && (
+            <p className="px-3 pb-3 pt-1 text-bs text-black-300">
+              Montando a tier list de {eloLabel(elo)}… na primeira vez pode levar uns 30 segundos. Depois fica salva por 12 horas.
+            </p>
+          )}
           {loading && <SkeletonRows rows={10} className="h-14" />}
           {error && <ErrorState message="Não deu para carregar a tier list agora." onRetry={retry} />}
           {!loading && !error && rows.length === 0 && (

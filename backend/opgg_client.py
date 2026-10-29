@@ -28,20 +28,27 @@ TIER_FIELDS = (
 CACHE_TTL = {
     "tierlist":          60 * 60 * 6,    # 6 horas — a meta muda por patch
     "ddragon_champions": 60 * 60 * 24,
-    "champion_elo":      60 * 60 * 12,   # força de um campeão num elo (1 chamada cada)
+    "champion_elo":      60 * 60 * 12,   # um campeão numa rota e num elo (1 chamada cada)
+    "tierlist_elo":      60 * 60 * 12,   # tier list montada para um elo
 }
 
-# Elos da faixa "forte em": o OP.GG aceita o elo exato ou faixas com "_plus".
-# Sem elo, o OP.GG usa Esmeralda+ (é o que a tier list principal mostra).
-ELO_TIERS = (
-    ("iron", "Ferro"), ("bronze", "Bronze"), ("silver", "Prata"), ("gold", "Ouro"),
-    ("platinum", "Platina"), ("emerald", "Esmeralda"), ("diamond", "Diamante"), ("master_plus", "Mestre+"),
-)
-ELO_CHAMPIONS_PER_LANE = 6
+# Elos aceitos pelo OP.GG (os mesmos do seletor do site deles).
+# A tier list por rota do OP.GG só existe em Esmeralda+; para os outros elos ela é montada
+# consultando cada campeão da rota naquele elo.
+DEFAULT_ELO = "emerald_plus"
+TIERLIST_ELOS = {
+    "all": "Todos os elos",
+    "iron": "Ferro", "bronze": "Bronze", "silver": "Prata",
+    "gold": "Ouro", "gold_plus": "Ouro+",
+    "platinum": "Platina", "platinum_plus": "Platina+",
+    "emerald": "Esmeralda", "emerald_plus": "Esmeralda+",
+    "diamond": "Diamante", "diamond_plus": "Diamante+",
+    "master": "Mestre", "master_plus": "Mestre+",
+    "grandmaster": "Grão-Mestre", "challenger": "Desafiante",
+}
 _opgg_semaphore = asyncio.Semaphore(16)   # não abrir dezenas de conexões de uma vez no OP.GG
-# Cálculo em andamento por rota: um pedido novo espera o que já está rodando em vez de repetir.
-_inflight: dict[str, asyncio.Task] = {}
-_warm_task: Optional[asyncio.Task] = None
+# Tier list em montagem por (rota, elo): um pedido novo espera o que já está rodando em vez de repetir.
+_inflight: dict[tuple[str, str], asyncio.Task] = {}
 
 _MCP_HEADERS = {
     "Content-Type": "application/json",
@@ -234,15 +241,15 @@ async def get_tierlist() -> Optional[dict]:
 
 
 # ─────────────────────────────────────────
-# Força de cada campeão por elo ("forte em")
+# Tier list de um elo específico
 # ─────────────────────────────────────────
 
 _AVERAGE_RE = re.compile(r"AverageStats\(([^()]*)\)")
-_ELO_FIELDS = ("win_rate", "tier", "rank", "play")
+_ELO_FIELDS = ("win_rate", "pick_rate", "ban_rate", "kda", "play", "tier", "rank")
 
 
 async def _champion_elo(champion_key: str, lane: str, elo: str) -> Optional[dict]:
-    cache_key = f"champion_elo_{champion_key}_{lane}_{elo}"
+    cache_key = f"champion_elo_v2_{champion_key}_{lane}_{elo}"
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached or None
@@ -266,60 +273,65 @@ async def _champion_elo(champion_key: str, lane: str, elo: str) -> Optional[dict
     return stats or None
 
 
-def _lane_task(lane: str) -> asyncio.Task:
-    task = _inflight.get(lane)
-    if task is None:
-        task = asyncio.get_running_loop().create_task(_compute_lane_elo_strength(lane))
-        _inflight[lane] = task
-        task.add_done_callback(lambda _t, done=lane: _inflight.pop(done, None))
-    return task
-
-
-async def get_lane_elo_strength(lane: str) -> Optional[dict]:
-    """
-    Para os primeiros campeões da rota (tier list Esmeralda+), o tier e o winrate em cada elo.
-    { lane, elos: [{id, label}], champions: { "Ahri": [{elo, tier, win_rate, rank, play} | None, ...] } }
-    """
-    # shield: se quem pediu desistir (timeout), o cálculo continua e fica no cache.
-    return await asyncio.shield(_lane_task(lane))
-
-
-async def _compute_lane_elo_strength(lane: str, limit: int = ELO_CHAMPIONS_PER_LANE) -> Optional[dict]:
-    tierlist = await get_tierlist()
-    if tierlist is None or lane not in tierlist["positions"]:
+async def _build_elo_tierlist(lane: str, elo: str) -> Optional[dict]:
+    base = await get_tierlist()
+    if base is None or lane not in base["positions"]:
         return None
 
-    rows = [r for r in tierlist["positions"][lane] if not r.get("is_rip") and r.get("champion_key")][:limit]
-    results = await asyncio.gather(*[
-        _champion_elo(row["champion_key"], lane, elo) for row in rows for elo, _ in ELO_TIERS
-    ])
+    candidates = [r for r in base["positions"][lane] if r.get("champion_key")]
+    stats = await asyncio.gather(*[_champion_elo(r["champion_key"], lane, elo) for r in candidates])
 
-    champions: dict[str, list] = {}
-    for i, row in enumerate(rows):
-        chunk = results[i * len(ELO_TIERS):(i + 1) * len(ELO_TIERS)]
-        champions[row["champion_key"]] = [
-            {"elo": elo, **stats} if stats else None
-            for (elo, _), stats in zip(ELO_TIERS, chunk)
-        ]
+    rows = []
+    for row, s in zip(candidates, stats):
+        if not s or not s.get("tier"):
+            continue
+        rows.append({
+            "champion":     row["champion"],
+            "champion_key": row["champion_key"],
+            "tier":         s.get("tier"),
+            "rank":         s.get("rank"),
+            "rank_prev":    None,          # o OP.GG não devolve a posição anterior por elo
+            "win_rate":     s.get("win_rate"),
+            "pick_rate":    s.get("pick_rate"),
+            "ban_rate":     s.get("ban_rate"),
+            "kda":          s.get("kda"),
+            "play":         s.get("play"),
+            "is_rip":       False,
+        })
+    # O "rank" do OP.GG por elo é a posição entre todas as rotas: ordena por ele e renumera na rota.
+    rows.sort(key=lambda r: (r["rank"] or 999))
+    for position, row in enumerate(rows, start=1):
+        row["rank"] = position
 
-    return {
-        "lane": lane,
-        "elos": [{"id": elo, "label": label} for elo, label in ELO_TIERS],
-        "champions": champions,
-    }
+    payload = {"rows": rows, "updated_at": int(time.time())}
+    if rows:
+        _cache_set(f"tierlist_elo_{lane}_{elo}", payload, CACHE_TTL["tierlist_elo"])
+    return payload
 
 
-def warm_all_lanes() -> None:
-    """Calcula todas as rotas em segundo plano, uma de cada vez e a mid primeiro (é a que a home abre)."""
-    global _warm_task
-    if _warm_task is not None and not _warm_task.done():
-        return
+async def get_tierlist_for_elo(lane: str, elo: str) -> Optional[dict]:
+    """
+    Tier list de uma rota num elo: { lane, elo, label, ddragon_version, updated_at, rows: [...] }.
+    Esmeralda+ vem direto da tier list do OP.GG; os outros elos levam ~30s na primeira vez.
+    """
+    base = await get_tierlist()
+    if base is None or lane not in base["positions"]:
+        return None
+    meta = {"lane": lane, "elo": elo, "label": TIERLIST_ELOS[elo], "ddragon_version": base["ddragon_version"]}
 
-    async def run():
-        for lane in ("mid", "top", "jungle", "adc", "support"):
-            try:
-                await _lane_task(lane)
-            except Exception as e:
-                logger.warning(f"Falha ao pré-calcular a rota {lane}: {e}")
+    if elo == DEFAULT_ELO:
+        return {**meta, "updated_at": base["updated_at"], "rows": base["positions"][lane]}
 
-    _warm_task = asyncio.get_running_loop().create_task(run())
+    cached = _cache_get(f"tierlist_elo_{lane}_{elo}")
+    if cached:
+        return {**meta, **cached}
+
+    key = (lane, elo)
+    task = _inflight.get(key)
+    if task is None:
+        task = asyncio.get_running_loop().create_task(_build_elo_tierlist(lane, elo))
+        _inflight[key] = task
+        task.add_done_callback(lambda _t, done=key: _inflight.pop(done, None))
+    # shield: se quem pediu desistir, a montagem continua e fica no cache para o próximo.
+    built = await asyncio.shield(task)
+    return {**meta, **built} if built else None
