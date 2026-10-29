@@ -94,6 +94,7 @@ export default {
         'pulse-dot':  'pulseDot 2s ease-in-out infinite',
         // "both": durante o atraso a linha fica apagada, sem piscar desenhada antes de começar
         'lane-draw':  'laneDraw 2.4s cubic-bezier(.6,0,.2,1) both',
+        'progress':   'progressSlide 1.1s cubic-bezier(.4,0,.2,1) infinite',
       },
       keyframes: {
         fadeUp: {
@@ -111,6 +112,11 @@ export default {
         laneDraw: {
           '0%':   { strokeDashoffset: '1' },
           '100%': { strokeDashoffset: '0' },
+        },
+        // Barra de carregamento sem fim: um trecho dourado atravessa a trilha
+        progressSlide: {
+          '0%':   { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(250%)' },
         },
       },
     },

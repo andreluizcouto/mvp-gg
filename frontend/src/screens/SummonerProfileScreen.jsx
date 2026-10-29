@@ -752,12 +752,26 @@ export default function SummonerProfileScreen() {
                 </span>
                 <LiveBadge live={live} open={liveOpen} onToggle={() => setLiveOpen(open => !open)} />
                 <button
+                  type="button"
                   onClick={handleRefresh}
                   disabled={refreshing}
-                  className="inline-flex min-h-[32px] items-center gap-2 rounded-full border border-white/10 px-3 text-bxs font-semibold text-black-100 transition hover:border-white/25 disabled:opacity-50"
+                  aria-live="polite"
+                  className={`inline-flex min-h-[32px] items-center gap-2 rounded-full border px-3 text-bxs font-semibold transition disabled:cursor-wait ${
+                    refreshing ? "border-purple-400/50 bg-purple-400/10 text-purple-300" : "border-white/10 text-black-100 hover:border-white/25"
+                  }`}
                 >
-                  <span className={`h-1.5 w-1.5 rounded-full bg-purple-400 ${refreshing ? "animate-spin" : "animate-pulse-dot"}`} />
-                  {refreshing ? "Atualizando..." : "Atualizar partidas"}
+                  {refreshing ? (
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 animate-spin" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+                      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+                      <path d="M20 4v7h-7" />
+                    </svg>
+                  )}
+                  {refreshing ? "Atualizando…" : "Atualizar partidas"}
                 </button>
               </div>
             </div>
@@ -793,13 +807,18 @@ export default function SummonerProfileScreen() {
                   role="tab"
                   aria-selected={queue === f.id}
                   onClick={() => handleQueueChange(f.id)}
-                  disabled={listLoading}
+                  disabled={listLoading || refreshing}
                   className={`chip ${queue === f.id ? "chip-active" : ""} disabled:cursor-wait`}
                 >
                   {f.label}
                 </button>
               ))}
             </div>
+            {refreshing && (
+              <div className="mb-1 h-1 overflow-hidden rounded-full bg-white/[0.06]" role="progressbar" aria-label="Atualizando partidas">
+                <div className="h-full w-2/5 animate-progress rounded-full bg-gradient-to-r from-purple-400/0 via-purple-400 to-purple-400/0" />
+              </div>
+            )}
             {listLoading && (
               <div className="space-y-1.5" aria-busy="true">
                 {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-[72px] shimmer-bg rounded-md" />)}
@@ -808,17 +827,24 @@ export default function SummonerProfileScreen() {
             {!listLoading && listError && (
               <p className="py-10 text-center text-bs text-red-400">{listError}</p>
             )}
-            {!listLoading && !listError && matches.map((match, i) => (
-              <MatchRow
-                key={match.match_id}
-                match={match}
-                index={i}
-                onSelect={() => handleSelect(match, i)}
-                hasCoaching={coachingStatus[match.match_id]?.status === "ready"}
-                puuid={data?.puuid}
-                fallbackTag={decodeURIComponent(tag)}
-              />
-            ))}
+            {!listLoading && !listError && (
+              <div
+                className={`flex flex-col gap-1.5 transition-opacity duration-300 ${refreshing ? "pointer-events-none opacity-40" : ""}`}
+                aria-busy={refreshing}
+              >
+                {matches.map((match, i) => (
+                  <MatchRow
+                    key={match.match_id}
+                    match={match}
+                    index={i}
+                    onSelect={() => handleSelect(match, i)}
+                    hasCoaching={coachingStatus[match.match_id]?.status === "ready"}
+                    puuid={data?.puuid}
+                    fallbackTag={decodeURIComponent(tag)}
+                  />
+                ))}
+              </div>
+            )}
             {!listLoading && !listError && matches.length === 0 && (
               <div className="text-center py-12 text-black-400 text-bs">
                 {queue === "all" ? "Nenhuma partida encontrada." : `Nenhuma partida recente de ${modeLabel}.`}
