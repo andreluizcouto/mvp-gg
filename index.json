@@ -1,0 +1,101 @@
+{
+ "generated_at": 1793302329,
+ "elos": [
+  {
+   "elo": "emerald_plus",
+   "label": "Esmeralda+",
+   "updated_at": 1793300573,
+   "champions": 264
+  },
+  {
+   "elo": "gold",
+   "label": "Ouro",
+   "updated_at": 1793300696,
+   "champions": 264
+  },
+  {
+   "elo": "platinum",
+   "label": "Platina",
+   "updated_at": 1793300827,
+   "champions": 264
+  },
+  {
+   "elo": "silver",
+   "label": "Prata",
+   "updated_at": 1793300950,
+   "champions": 264
+  },
+  {
+   "elo": "emerald",
+   "label": "Esmeralda",
+   "updated_at": 1793301075,
+   "champions": 264
+  },
+  {
+   "elo": "diamond",
+   "label": "Diamante",
+   "updated_at": 1793301205,
+   "champions": 264
+  },
+  {
+   "elo": "gold_plus",
+   "label": "Ouro+",
+   "updated_at": 1793301338,
+   "champions": 264
+  },
+  {
+   "elo": "platinum_plus",
+   "label": "Platina+",
+   "updated_at": 1793301468,
+   "champions": 264
+  },
+  {
+   "elo": "bronze",
+   "label": "Bronze",
+   "updated_at": 1793301596,
+   "champions": 264
+  },
+  {
+   "elo": "iron",
+   "label": "Ferro",
+   "updated_at": 1793301596,
+   "champions": 263
+  },
+  {
+   "elo": "diamond_plus",
+   "label": "Diamante+",
+   "updated_at": 1793301719,
+   "champions": 264
+  },
+  {
+   "elo": "master_plus",
+   "label": "Mestre+",
+   "updated_at": 1793301845,
+   "champions": 264
+  },
+  {
+   "elo": "master",
+   "label": "Mestre",
+   "updated_at": 1793301971,
+   "champions": 264
+  },
+  {
+   "elo": "grandmaster",
+   "label": "Grão-Mestre",
+   "updated_at": 1793302099,
+   "champions": 264
+  },
+  {
+   "elo": "challenger",
+   "label": "Desafiante",
+   "updated_at": 1793302224,
+   "champions": 261
+  },
+  {
+   "elo": "all",
+   "label": "Todos os elos",
+   "updated_at": 1793302329,
+   "champions": 264
+  }
+ ]
+}
