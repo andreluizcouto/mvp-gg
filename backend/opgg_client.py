@@ -5,6 +5,7 @@ Os dados são do OP.GG e a tela credita a fonte.
 """
 
 import ast
+import asyncio
 import json
 import logging
 import re
@@ -27,7 +28,20 @@ TIER_FIELDS = (
 CACHE_TTL = {
     "tierlist":          60 * 60 * 6,    # 6 horas — a meta muda por patch
     "ddragon_champions": 60 * 60 * 24,
+    "champion_elo":      60 * 60 * 12,   # força de um campeão num elo (1 chamada cada)
 }
+
+# Elos da faixa "forte em": o OP.GG aceita o elo exato ou faixas com "_plus".
+# Sem elo, o OP.GG usa Esmeralda+ (é o que a tier list principal mostra).
+ELO_TIERS = (
+    ("iron", "Ferro"), ("bronze", "Bronze"), ("silver", "Prata"), ("gold", "Ouro"),
+    ("platinum", "Platina"), ("emerald", "Esmeralda"), ("diamond", "Diamante"), ("master_plus", "Mestre+"),
+)
+ELO_CHAMPIONS_PER_LANE = 6
+_opgg_semaphore = asyncio.Semaphore(16)   # não abrir dezenas de conexões de uma vez no OP.GG
+# Cálculo em andamento por rota: um pedido novo espera o que já está rodando em vez de repetir.
+_inflight: dict[str, asyncio.Task] = {}
+_warm_task: Optional[asyncio.Task] = None
 
 _MCP_HEADERS = {
     "Content-Type": "application/json",
@@ -217,3 +231,95 @@ async def get_tierlist() -> Optional[dict]:
     _cache_set("tierlist", payload, CACHE_TTL["tierlist"])
     logger.info("Tier list do OP.GG carregada: " + ", ".join(f"{p}={len(r)}" for p, r in positions.items()))
     return payload
+
+
+# ─────────────────────────────────────────
+# Força de cada campeão por elo ("forte em")
+# ─────────────────────────────────────────
+
+_AVERAGE_RE = re.compile(r"AverageStats\(([^()]*)\)")
+_ELO_FIELDS = ("win_rate", "tier", "rank", "play")
+
+
+async def _champion_elo(champion_key: str, lane: str, elo: str) -> Optional[dict]:
+    cache_key = f"champion_elo_{champion_key}_{lane}_{elo}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached or None
+
+    fields = [f"data.summary.average_stats.{{{','.join(_ELO_FIELDS)}}}"]
+    try:
+        async with _opgg_semaphore:
+            text = await _call_tool("lol_get_champion_analysis", {
+                "game_mode": "ranked", "champion": champion_key.upper(), "position": lane,
+                "tier": elo, "desired_output_fields": fields,
+            })
+        order = dict(_CLASS_RE.findall(text)).get("AverageStats", ",".join(_ELO_FIELDS))
+        match = _AVERAGE_RE.search(text)
+        stats = dict(zip([f.strip() for f in order.split(",")], _literal(match.group(1)))) if match else {}
+    except Exception as e:
+        logger.warning(f"Falha ao buscar {champion_key}/{lane}/{elo} no OP.GG: {e}")
+        return None
+
+    # Guarda também o "sem dados" (dict vazio) para não repetir a chamada.
+    _cache_set(cache_key, stats, CACHE_TTL["champion_elo"])
+    return stats or None
+
+
+def _lane_task(lane: str) -> asyncio.Task:
+    task = _inflight.get(lane)
+    if task is None:
+        task = asyncio.get_running_loop().create_task(_compute_lane_elo_strength(lane))
+        _inflight[lane] = task
+        task.add_done_callback(lambda _t, done=lane: _inflight.pop(done, None))
+    return task
+
+
+async def get_lane_elo_strength(lane: str) -> Optional[dict]:
+    """
+    Para os primeiros campeões da rota (tier list Esmeralda+), o tier e o winrate em cada elo.
+    { lane, elos: [{id, label}], champions: { "Ahri": [{elo, tier, win_rate, rank, play} | None, ...] } }
+    """
+    # shield: se quem pediu desistir (timeout), o cálculo continua e fica no cache.
+    return await asyncio.shield(_lane_task(lane))
+
+
+async def _compute_lane_elo_strength(lane: str, limit: int = ELO_CHAMPIONS_PER_LANE) -> Optional[dict]:
+    tierlist = await get_tierlist()
+    if tierlist is None or lane not in tierlist["positions"]:
+        return None
+
+    rows = [r for r in tierlist["positions"][lane] if not r.get("is_rip") and r.get("champion_key")][:limit]
+    results = await asyncio.gather(*[
+        _champion_elo(row["champion_key"], lane, elo) for row in rows for elo, _ in ELO_TIERS
+    ])
+
+    champions: dict[str, list] = {}
+    for i, row in enumerate(rows):
+        chunk = results[i * len(ELO_TIERS):(i + 1) * len(ELO_TIERS)]
+        champions[row["champion_key"]] = [
+            {"elo": elo, **stats} if stats else None
+            for (elo, _), stats in zip(ELO_TIERS, chunk)
+        ]
+
+    return {
+        "lane": lane,
+        "elos": [{"id": elo, "label": label} for elo, label in ELO_TIERS],
+        "champions": champions,
+    }
+
+
+def warm_all_lanes() -> None:
+    """Calcula todas as rotas em segundo plano, uma de cada vez e a mid primeiro (é a que a home abre)."""
+    global _warm_task
+    if _warm_task is not None and not _warm_task.done():
+        return
+
+    async def run():
+        for lane in ("mid", "top", "jungle", "adc", "support"):
+            try:
+                await _lane_task(lane)
+            except Exception as e:
+                logger.warning(f"Falha ao pré-calcular a rota {lane}: {e}")
+
+    _warm_task = asyncio.get_running_loop().create_task(run())

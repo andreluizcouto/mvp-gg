@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { LANES, championCentered, positionIcon, rankCrest } from "../services/constants"
-import { formatNumber, formatPercent, patchLabel, useLeaderboard, useTierlist, winRateColor } from "../services/meta"
-import { ChampionAvatar, RiftLanes, SkeletonRows, TierBadge } from "../components/MetaBits"
+import { formatNumber, formatPercent, patchLabel, strongestElos, useLeaderboard, useTierlist, useTierlistElos, winRateColor } from "../services/meta"
+import { ChampionAvatar, EloStrip, RiftLanes, SkeletonRows, TierBadge } from "../components/MetaBits"
 
 function parseRiotId(raw) {
   const value = raw.trim()
@@ -42,6 +42,7 @@ export default function SearchScreen() {
   const [lane, setLane] = useState("mid")
   const tierlist = useTierlist()
   const ladder = useLeaderboard(50)
+  const elos = useTierlistElos(lane)
 
   useEffect(() => {
     if (!error) return undefined
@@ -213,20 +214,38 @@ export default function SearchScreen() {
               </button>
             ))}
           </div>
-          <div className="mt-4 grid gap-1">
-            {tierlist.loading && <SkeletonRows rows={6} className="h-12" />}
+          <div className="mt-4 flex items-center justify-between gap-3 px-2 text-bxs text-black-400">
+            <span>Força por elo: Ferro → Mestre+</span>
+            <span>Tier · vitória em Esmeralda+</span>
+          </div>
+          <div className="mt-2 grid gap-1">
+            {tierlist.loading && <SkeletonRows rows={6} className="h-16" />}
             {tierlist.error && <p className="py-6 text-center text-bs text-black-300">Tier list indisponível agora.</p>}
-            {laneRows.map((row) => (
-              <div key={row.champion} className="grid grid-cols-[24px_1fr_auto_64px] items-center gap-3 rounded-xl px-2 py-2 hover:bg-white/[0.03]">
-                <span className="tabular text-bs font-semibold text-black-400">{row.rank}</span>
-                <div className="flex min-w-0 items-center gap-3">
-                  <ChampionAvatar championKey={row.champion_key} name={row.champion} version={version} />
-                  <span className="truncate text-bs font-semibold text-black-0">{row.champion}</span>
+            {laneRows.map((row) => {
+              const entries = elos.data?.champions?.[row.champion_key]
+              const strongest = entries ? strongestElos(entries, elos.data.elos) : ""
+              return (
+                <div key={row.champion} className="grid grid-cols-[24px_1fr_auto_56px] items-center gap-3 rounded-xl px-2 py-2 hover:bg-white/[0.03]">
+                  <span className="tabular text-bs font-semibold text-black-400">{row.rank}</span>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <ChampionAvatar championKey={row.champion_key} name={row.champion} version={version} className="h-10 w-10 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-bs font-semibold text-black-0">{row.champion}</p>
+                      <div className="mt-1">
+                        {entries
+                          ? <EloStrip entries={entries} elos={elos.data.elos} />
+                          : <span className={`block h-5 w-full max-w-[200px] rounded-[5px] ${elos.error ? "bg-white/[0.03]" : "shimmer-bg"}`} aria-hidden="true" />}
+                      </div>
+                      <p className="mt-1 truncate text-bxs text-black-400">
+                        {strongest ? <>Mais forte em <span className="font-semibold text-black-200">{strongest}</span></> : elos.loading ? "Calculando força por elo…" : " "}
+                      </p>
+                    </div>
+                  </div>
+                  <TierBadge tier={row.tier} size="sm" />
+                  <span className={`tabular text-right text-bs font-semibold ${winRateColor(row.win_rate)}`}>{formatPercent(row.win_rate)}</span>
                 </div>
-                <TierBadge tier={row.tier} size="sm" />
-                <span className={`tabular text-right text-bs font-semibold ${winRateColor(row.win_rate)}`}>{formatPercent(row.win_rate)}</span>
-              </div>
-            ))}
+              )
+            })}
           </div>
           <p className="mt-3 text-bxs text-black-400">Dados: OP.GG · ranqueada solo/duo</p>
         </div>

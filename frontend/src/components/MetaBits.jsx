@@ -94,6 +94,36 @@ export function RankTrend({ rank, previous }) {
   )
 }
 
+// Faixa "forte em": uma célula por elo (Ferro → Mestre+), colorida pelo tier do campeão naquele elo.
+// No celular as células ficam só com a cor; a letra aparece a partir de telas médias.
+export function EloStrip({ entries, elos }) {
+  return (
+    <span className="flex w-full max-w-[200px] gap-[3px]" role="list" aria-label="Tier por elo">
+      {elos.map((elo, i) => {
+        const entry = entries?.[i]
+        const meta = entry ? META_TIERS[entry.tier] : null
+        const text = entry && meta
+          ? `${elo.label}: tier ${meta.label} · ${(entry.win_rate * 100).toFixed(0)}% de vitórias`
+          : `${elo.label}: sem dados`
+        return (
+          <span
+            key={elo.id}
+            role="listitem"
+            title={text}
+            aria-label={text}
+            className="flex h-5 min-w-0 flex-1 items-center justify-center rounded-[5px] font-display text-bxs font-bold leading-none"
+            style={meta
+              ? { color: meta.color, backgroundColor: `${meta.color}24`, boxShadow: `inset 0 0 0 1px ${meta.color}40` }
+              : { backgroundColor: "rgba(255,255,255,0.04)" }}
+          >
+            <span className="hidden sm:inline">{meta?.label ?? ""}</span>
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
 export function SkeletonRows({ rows = 5, className = "h-12" }) {
   return (
     <div className="grid gap-2" aria-hidden="true">

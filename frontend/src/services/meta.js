@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { fetchLeaderboard, fetchTierlist } from "./api"
+import { fetchLeaderboard, fetchTierlist, fetchTierlistElos } from "./api"
 
 // Cache em memória por sessão: a home e as telas usam os mesmos dados sem buscar duas vezes.
 const memory = new Map()
@@ -42,6 +42,27 @@ function useCachedRequest(key, request) {
 
 export function useTierlist() {
   return useCachedRequest("tierlist", fetchTierlist)
+}
+
+export function useTierlistElos(lane) {
+  return useCachedRequest(`elos:${lane}`, () => fetchTierlistElos(lane))
+}
+
+// Elos onde o campeão tem o melhor tier, agrupados em faixas: "Ouro a Diamante", "Ferro e Mestre+"
+export function strongestElos(entries, elos) {
+  const tiers = entries.map(e => e?.tier ?? null)
+  const valid = tiers.filter(t => t !== null)
+  if (!valid.length) return ""
+  const best = Math.min(...valid)
+  const ranges = []
+  tiers.forEach((tier, i) => {
+    if (tier !== best) return
+    const last = ranges[ranges.length - 1]
+    if (last && last.end === i - 1) last.end = i
+    else ranges.push({ start: i, end: i })
+  })
+  const label = (r) => r.start === r.end ? elos[r.start].label : `${elos[r.start].label} a ${elos[r.end].label}`
+  return ranges.length > 2 ? `${label(ranges[0])} e outros` : ranges.map(label).join(" e ")
 }
 
 export function useLeaderboard(limit = 50) {
