@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+html, body {
+  background-color: #0D121A;
+  color: #C5CCD9;
+  font-family: "Inter Variable", system-ui, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: rgba(226,185,94,0.35); color: #fff; }
+
+::-webkit-scrollbar            { width: 8px; height: 8px; }
+::-webkit-scrollbar-track      { background: #090D13; }
+::-webkit-scrollbar-thumb      { background: #262E3D; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover{ background: #33D1C155; }
+
+@layer components {
+  /* Cartão padrão: vidro escuro com borda fina */
+  .card {
+    @apply rounded-card border border-white/[0.06] bg-black-600/70 shadow-card backdrop-blur-sm;
+  }
+  .eyebrow {
+    @apply font-display text-bxs uppercase tracking-[0.18em] text-purple-400;
+  }
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-purple-400 px-5 py-2.5 font-semibold text-black-900 transition hover:bg-purple-300 active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/10 px-5 py-2.5 font-semibold text-black-100 transition hover:border-white/25 hover:bg-white/5;
+  }
+  .chip {
+    @apply inline-flex min-h-[36px] items-center gap-2 rounded-full border border-white/[0.08] px-4 text-bs font-semibold text-black-300 transition hover:text-black-100;
+  }
+  .chip-active {
+    @apply border-purple-400/50 bg-purple-400/10 text-purple-300;
+  }
+}
+
+@layer utilities {
+  .tabular { font-variant-numeric: tabular-nums; }
+  .text-gold-gradient {
+    background: linear-gradient(135deg, #F6E2A6 0%, #E2B95E 45%, #A57A22 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-premium {
+    background: linear-gradient(135deg, #F6E7BF, #C99A36);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .shimmer-bg {
+    background: linear-gradient(90deg, #161C27 0%, #262E3D 30%, #1d2533 50%, #262E3D 70%, #161C27 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+  }
+  .glow-purple {
+    box-shadow: 0 10px 30px -12px rgba(51,209,193,0.25);
+  }
+  .scoreGlow {
+    animation: scoreGlow 1.8s ease-in-out infinite;
+  }
+  /* Grade do mapa visto de cima, usada atrás do hero */
+  .rift-grid {
+    background-image:
+      linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at 50% 30%, black 20%, transparent 70%);
+  }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes scoreGlow {
+  0%, 100% { box-shadow: 0 0 10px #E2B95Ebb, 0 0 20px #E2B95E55; }
+  50%       { box-shadow: 0 0 20px #F6E2A6ee, 0 0 40px #E2B95E99; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
