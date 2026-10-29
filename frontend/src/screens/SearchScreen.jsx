@@ -109,7 +109,7 @@ export default function SearchScreen() {
                 </button>
               </div>
               <p className={`mt-3 min-h-[20px] text-bs ${error ? "text-red-400" : "text-black-400"}`} role={error ? "alert" : undefined}>
-                {error || (suggestions.length > 0 ? "Ou experimente um Challenger do BR:" : "Ex.: Faker#BR1")}
+                {error || (suggestions.length > 0 ? "Ou experimente um Challenger do BR:" : "")}
               </p>
               {!error && suggestions.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2">
