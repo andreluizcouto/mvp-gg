@@ -48,6 +48,10 @@ html, body {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    /* O degradê só pinta dentro da caixa do texto: com letras largas e espaçamento
+       apertado, a última letra passa da borda e fica "cortada". A folga resolve. */
+    padding-right: 0.08em;
+    margin-right: -0.02em;
   }
   .text-premium {
     background: linear-gradient(135deg, #F6E7BF, #C99A36);
